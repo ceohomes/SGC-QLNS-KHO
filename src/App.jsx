@@ -83,6 +83,8 @@ export default function App() {
     loadData()
   }, [])
 
+  const [initialDuAnFilter, setInitialDuAnFilter] = useState('')
+
   // Đếm số lượng để hiển thị badge số lượng trong Sidebar
   const counts = useMemo(() => {
     return {
@@ -132,9 +134,28 @@ export default function App() {
             </div>
           ) : (
             <>
-              {tab === 'dashboard' && <DashboardTab data={data} onNavigateToTab={setTab} />}
-              {tab === 'danhsach' && <DanhSachTab data={data} onUpdateData={setData} dbStatus={dbStatus} onReload={loadData} />}
-              {tab === 'thongtinduan' && <ThongTinDuAnTab data={data} />}
+              {tab === 'dashboard' && (
+                <DashboardTab 
+                  data={data} 
+                  onNavigateToTab={(nextTab, filterVal) => {
+                    if (filterVal !== undefined) {
+                      setInitialDuAnFilter(filterVal)
+                    }
+                    setTab(nextTab)
+                  }} 
+                />
+              )}
+              {tab === 'danhsach' && (
+                <DanhSachTab 
+                  data={data} 
+                  onUpdateData={setData} 
+                  dbStatus={dbStatus} 
+                  onReload={loadData} 
+                  initialDuAnFilter={initialDuAnFilter}
+                  setInitialDuAnFilter={setInitialDuAnFilter}
+                />
+              )}
+              {tab === 'thongtinduan' && <ThongTinDuAnTab data={data} onReload={loadData} />}
               {tab === 'duan' && <DuAnTab data={data} />}
             </>
           )}

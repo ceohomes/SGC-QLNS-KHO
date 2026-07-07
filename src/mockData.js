@@ -22,7 +22,7 @@ export const DU_AN_LIST = [
 ]
 
 export const KHO_TYPES = ['Kho vật tư xây dựng', 'Kho sắt thép', 'Kho xi măng', 'Kho thiết bị – máy móc', 'Kho nhiên liệu', 'Kho cốp pha – giàn giáo']
-export const CHUC_VU_LIST = ['Thủ kho trưởng hiện trường', 'Thủ kho hiện trường', 'Trưởng nhóm kho']
+export const CHUC_VU_LIST = ['Thủ kho nhập liệu', 'Thủ kho hiện trường', 'Trưởng nhóm kho']
 export const TRINH_DO_LIST = ['Trung cấp', 'Cao đẳng', 'Đại học']
 export const CHUYEN_NGANH_LIST = ['Quản trị kho vận', 'Kế toán – Kho', 'Xây dựng dân dụng', 'Quản trị kinh doanh', 'Logistics']
 export const LOAI_HD_LIST = ['Chính thức (không xác định thời hạn)', 'Xác định thời hạn 1 năm', 'Thời vụ / Theo công trình', 'Thử việc']
@@ -96,7 +96,7 @@ function genRecord(idx) {
   const ngayVaoLam = `${namVaoLam}-${String(randInt(1, 12)).padStart(2, '0')}-${String(randInt(1, 28)).padStart(2, '0')}`
 
   const duAn = pick(DU_AN_LIST)
-  const chucVu = rand() < 0.12 ? 'Thủ kho trưởng hiện trường' : (rand() < 0.7 ? 'Thủ kho hiện trường' : 'Trưởng nhóm kho')
+  const chucVu = rand() < 0.12 ? 'Thủ kho nhập liệu' : (rand() < 0.7 ? 'Thủ kho hiện trường' : 'Trưởng nhóm kho')
   const trinhDo = pick(TRINH_DO_LIST)
   const loaiHopDong = pick(LOAI_HD_LIST)
 
@@ -114,9 +114,9 @@ function genRecord(idx) {
     ngayHetHanHD = fmt(base)
   }
 
-  const luongCoBan = (chucVu === 'Thủ kho trưởng hiện trường' || chucVu === 'Thủ kho trưởng') ? randInt(18, 25) : (chucVu === 'Thủ kho hiện trường' || chucVu === 'Thủ kho') ? randInt(12, 17) : randInt(8, 11)
-  const soLuongKhoQuanLy = (chucVu === 'Thủ kho trưởng hiện trường' || chucVu === 'Thủ kho trưởng') ? randInt(2, 4) : 1
-  const giaTriTonKhoQuanLy = Math.round(((chucVu === 'Thủ kho trưởng hiện trường' || chucVu === 'Thủ kho trưởng') ? randInt(15, 40) : randInt(3, 15)) * (0.8 + rand() * 0.6) * 10) / 10
+  const luongCoBan = (chucVu === 'Thủ kho nhập liệu' || chucVu === 'Thủ kho trưởng') ? randInt(18, 25) : (chucVu === 'Thủ kho hiện trường' || chucVu === 'Thủ kho') ? randInt(12, 17) : randInt(8, 11)
+  const soLuongKhoQuanLy = (chucVu === 'Thủ kho nhập liệu' || chucVu === 'Thủ kho trưởng') ? randInt(2, 4) : 1
+  const giaTriTonKhoQuanLy = Math.round(((chucVu === 'Thủ kho nhập liệu' || chucVu === 'Thủ kho trưởng') ? randInt(15, 40) : randInt(3, 15)) * (0.8 + rand() * 0.6) * 10) / 10
 
   const nameParts = hoTen.split(' ')
   const emailPrefix = removeAccents(nameParts[nameParts.length - 1] + '.' + nameParts[0])

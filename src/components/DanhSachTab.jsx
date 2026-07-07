@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { Search, Download, X, Phone, Mail, Building, Layers, Upload, Check, Database, Copy, AlertCircle, FileSpreadsheet, AlertTriangle, Info, MapPin, Calendar, Briefcase, Warehouse, Award, ShieldCheck, Pencil, Trash2, Plus } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import * as XLSX from 'xlsx'
@@ -8,7 +8,39 @@ import { exportThuKhoExcel } from '../excelExporter.js'
 import CustomAlert from './CustomAlert.jsx'
 import ExcelJS from 'exceljs'
 
-export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload }) {
+const COLOR_PRESETS = [
+  { color: '#64748b', bgColor: '#f8fafc', borderColor: '#cbd5e1', badgeBg: '#e2e8f0' },
+  { color: '#ef4444', bgColor: '#fef2f2', borderColor: '#fca5a5', badgeBg: '#fee2e2' },
+  { color: '#f97316', bgColor: '#fff7ed', borderColor: '#fdb374', badgeBg: '#ffedd5' },
+  { color: '#d97706', bgColor: '#fefbeb', borderColor: '#fcd34d', badgeBg: '#fef3c7' },
+  { color: '#10b981', bgColor: '#f0fdf4', borderColor: '#86efac', badgeBg: '#dcfce7' },
+  { color: '#0d9488', bgColor: '#f0fdfa', borderColor: '#99f6e4', badgeBg: '#ccfbf1' },
+  { color: '#0ea5e9', bgColor: '#f0f9ff', borderColor: '#7dd3fc', badgeBg: '#e0f2fe' },
+  { color: '#4f46e5', bgColor: '#f5f3ff', borderColor: '#c7d2fe', badgeBg: '#e0e7ff' },
+  { color: '#a855f7', bgColor: '#faf5ff', borderColor: '#d8b4fe', badgeBg: '#f3e8ff' },
+  { color: '#ec4899', bgColor: '#fdf2f8', borderColor: '#fbcfe8', badgeBg: '#fce7f3' }
+]
+
+const getModernColors = (colorHex) => {
+  const hex = (colorHex || '#64748b').toLowerCase()
+  const found = COLOR_PRESETS.find(p => p.color.toLowerCase() === hex)
+  if (found) {
+    return {
+      color: found.color,
+      bgColor: found.bgColor,
+      borderColor: found.borderColor,
+      badgeBg: found.badgeBg
+    }
+  }
+  return {
+    color: colorHex || '#64748b',
+    bgColor: colorHex === '#64748b' ? '#f8fafc' : (colorHex + '15'),
+    borderColor: colorHex === '#64748b' ? '#cbd5e1' : colorHex,
+    badgeBg: colorHex === '#64748b' ? '#e2e8f0' : (colorHex + '25')
+  }
+}
+
+export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload, initialDuAnFilter, setInitialDuAnFilter }) {
   const [search, setSearch] = useState('')
   const [duAnFilter, setDuAnFilter] = useState('')
   const [chucVuFilter, setChucVuFilter] = useState('')
@@ -21,6 +53,120 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload }) 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(100)
   const [alertConfig, setAlertConfig] = useState(null)
+
+  // Block/Project colors configurations from Supabase or LocalStorage
+  const [blocksConfig, setBlocksConfig] = useState([])
+
+  useEffect(() => {
+    if (initialDuAnFilter) {
+      setDuAnFilter(initialDuAnFilter)
+      
+      // Auto-open first storekeeper of this project
+      const matched = data.filter(d => {
+        if (initialDuAnFilter === 'Chưa phân bổ') {
+          const proj = (d.duAn || '').trim().toLowerCase()
+          return !proj || proj === 'none' || proj === '—'
+        } else {
+          return d.duAn === initialDuAnFilter
+        }
+      })
+      
+      if (matched.length > 0) {
+        setSelected(matched[0])
+      }
+      
+      // Clear parent trigger
+      if (setInitialDuAnFilter) {
+        setInitialDuAnFilter('')
+      }
+    }
+  }, [initialDuAnFilter, data, setInitialDuAnFilter])
+
+  useEffect(() => {
+    const fetchBlocksConfig = async () => {
+      try {
+        const { data: dbBlocks, error: blocksErr } = await supabase
+          .from('sgc_thong_tin_du_an_blocks')
+          .select('*')
+          .order('sort_order', { ascending: true })
+
+        if (blocksErr) throw blocksErr
+
+        const { data: dbProjects, error: projsErr } = await supabase
+          .from('sgc_thong_tin_du_an_projects')
+          .select('*')
+          .order('sort_order', { ascending: true })
+
+        if (projsErr) throw projsErr
+
+        if (dbBlocks && dbBlocks.length > 0) {
+          const formattedBlocks = dbBlocks.map(b => {
+            const blockProjs = (dbProjects || [])
+              .filter(p => p.block_id === b.id)
+              .map(p => ({
+                id: p.id,
+                name: p.name,
+                badge: p.badge
+              }))
+            return {
+              id: b.id,
+              name: b.name,
+              badge: b.badge,
+              color: b.color,
+              bgColor: b.bg_color,
+              borderColor: b.border_color,
+              badgeBg: b.badge_bg,
+              projects: blockProjs
+            }
+          })
+          setBlocksConfig(formattedBlocks)
+        } else {
+          throw new Error('No blocks in DB')
+        }
+      } catch (err) {
+        console.warn('Falling back to localStorage for blocksConfig:', err)
+        const saved = localStorage.getItem('sgc_thong_tin_du_an_config')
+        if (saved) {
+          try {
+            setBlocksConfig(JSON.parse(saved))
+          } catch (e) {
+            // fallback
+          }
+        }
+      }
+    }
+    fetchBlocksConfig()
+  }, [data]) // reload configuration if data is refreshed / reloaded
+
+  const findBlockMatch = (duAnName, banChuoiKhoiName) => {
+    if (!blocksConfig || blocksConfig.length === 0) return null
+
+    const cleanDuAn = (duAnName || '').trim().toLowerCase()
+    const cleanKhoi = (banChuoiKhoiName || '').trim().toLowerCase()
+
+    if (!cleanDuAn && !cleanKhoi) return null
+
+    // 1. Try to find a block by matching project name
+    if (cleanDuAn) {
+      for (const block of blocksConfig) {
+        const matchProj = (block.projects || []).some(p => (p.name || '').trim().toLowerCase() === cleanDuAn)
+        if (matchProj) {
+          return block
+        }
+      }
+    }
+
+    // 2. Fallback: Try to find a block by matching block name
+    if (cleanKhoi) {
+      for (const block of blocksConfig) {
+        if ((block.name || '').trim().toLowerCase() === cleanKhoi) {
+          return block
+        }
+      }
+    }
+
+    return null
+  }
 
   const handleRowClick = (row) => {
     setEditingRow(row)
@@ -304,7 +450,16 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload }) 
     const q = search.trim().toLowerCase()
     return data.filter(d => {
       if (q && !(d.hoTen.toLowerCase().includes(q) || d.maNV.toLowerCase().includes(q) || d.soDienThoai.includes(q))) return false
-      if (duAnFilter && d.duAn !== duAnFilter) return false
+      
+      if (duAnFilter) {
+        if (duAnFilter === 'Chưa phân bổ') {
+          const proj = (d.duAn || '').trim().toLowerCase()
+          if (proj && proj !== 'none' && proj !== '—') return false
+        } else {
+          if (d.duAn !== duAnFilter) return false
+        }
+      }
+      
       if (chucVuFilter && d.chucVu !== chucVuFilter) return false
       if (trangThaiFilter && d.trangThai !== trangThaiFilter) return false
       return true
@@ -463,6 +618,7 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload }) 
 
         <select {...selectClass} value={duAnFilter} onChange={e => setDuAnFilter(e.target.value)}>
           <option value="">Tất cả dự án</option>
+          <option value="Chưa phân bổ">Chưa phân bổ / Khác</option>
           {uniqueDuAnList.map(da => <option key={da} value={da}>{da}</option>)}
         </select>
 
@@ -588,8 +744,8 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload }) 
           <thead>
             <tr>
               <th style={{ minWidth: 40 }}>STT</th>
-              <th style={{ minWidth: 140 }}>Khối thi công</th>
-              <th style={{ minWidth: 220 }}>Dự án / Công trình</th>
+              <th style={{ width: 145, minWidth: 145, maxWidth: 145 }}>Khối thi công</th>
+              <th style={{ width: 165, minWidth: 165, maxWidth: 165 }}>Dự án / Công trình</th>
               <th style={{ minWidth: 90, textAlign: 'center' }}>Mã NV</th>
               <th style={{ minWidth: 200 }}>Họ và tên</th>
               <th style={{ minWidth: 130 }}>Chức danh</th>
@@ -599,37 +755,161 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload }) 
               <th style={{ minWidth: 120 }}>Trình độ</th>
               <th style={{ minWidth: 130 }}>Trạng thái</th>
               <th style={{ minWidth: 110 }}>Đánh giá</th>
+              <th style={{ minWidth: 200 }}>Ghi chú</th>
             </tr>
           </thead>
           <tbody>
-            {paged.map(row => (
-              <tr 
-                key={row.maNV} 
-                onDoubleClick={() => handleRowClick(row)}
-                style={{ cursor: 'pointer' }}
-                title="Nhấp đúp chuột vào dòng để chỉnh sửa thông tin thủ kho"
-              >
-                <td style={{ textAlign: 'center' }}>{row.stt}</td>
-                <td>{row.banChuoiKhoi}</td>
-                <td title={row.duAn}>{row.duAn}</td>
-                <td style={{ fontWeight: 700, color: 'var(--primary)', textAlign: 'center' }}>{row.maNV}</td>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div className="avatar" style={{ background: avatarColor(row.hoTen) }}>{initials(row.hoTen)}</div>
-                    <span style={{ fontWeight: 600 }}>{row.hoTen}</span>
-                  </div>
-                </td>
-                <td><span className={`badge ${chucVuBadgeClass(row.chucVu)}`}>{row.chucVu}</span></td>
-                <td style={{ textAlign: 'center' }}>{row.soDienThoai}</td>
-                <td>{row.emailCongTy}</td>
-                <td style={{ textAlign: 'center' }}>{formatDate(row.ngaySinh)}</td>
-                <td>{row.trinhDo}</td>
-                <td><span className={`badge ${trangThaiBadgeClass(row.trangThai)}`}>{row.trangThai}</span></td>
-                <td><span className={`badge ${danhGiaBadgeClass(row.danhGiaHieuSuat)}`}>{row.danhGiaHieuSuat}</span></td>
-              </tr>
-            ))}
+            {paged.map(row => {
+              const matchedBlock = findBlockMatch(row.duAn, row.banChuoiKhoi)
+              const colors = matchedBlock ? getModernColors(matchedBlock.color) : null
+
+              return (
+                <tr 
+                  key={row.maNV} 
+                  onDoubleClick={() => handleRowClick(row)}
+                  style={{ cursor: 'pointer' }}
+                  title="Nhấp đúp chuột vào dòng để chỉnh sửa thông tin thủ kho"
+                >
+                  <td style={{ textAlign: 'center' }}>{row.stt}</td>
+                  <td style={{ width: 145, minWidth: 145, maxWidth: 145, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {matchedBlock ? (
+                      <span style={{
+                        background: colors.bgColor,
+                        color: colors.color,
+                        border: `1px solid ${colors.borderColor}`,
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        fontWeight: 700,
+                        fontSize: '11px',
+                        fontFamily: '"Roboto", sans-serif',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        letterSpacing: '0.01em',
+                        whiteSpace: 'nowrap',
+                        textOverflow: 'ellipsis',
+                        overflow: 'hidden',
+                        maxWidth: '100%',
+                        lineHeight: '1.2'
+                      }} title={matchedBlock.name}>
+                        <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: colors.color, flexShrink: 0 }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{matchedBlock.name}</span>
+                      </span>
+                    ) : (
+                      <span style={{ 
+                        color: '#64748b', 
+                        fontSize: '12px', 
+                        fontWeight: 500,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        display: 'block' 
+                      }} title={row.banChuoiKhoi || '—'}>
+                        {row.banChuoiKhoi || '—'}
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ width: 165, minWidth: 165, maxWidth: 165, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {matchedBlock ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, maxWidth: '100%', overflow: 'hidden' }} title={row.duAn}>
+                        <span style={{
+                          background: colors.color,
+                          color: '#ffffff',
+                          fontFamily: '"Roboto", sans-serif',
+                          fontSize: '9.5px',
+                          fontWeight: 800,
+                          padding: '2px 5px',
+                          borderRadius: '4px',
+                          flexShrink: 0
+                        }}>
+                          {matchedBlock.badge || 'DA'}
+                        </span>
+                        <span style={{
+                          fontFamily: '"Roboto", sans-serif',
+                          fontSize: '12.5px',
+                          color: '#334155',
+                          fontWeight: 600,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          {row.duAn}
+                        </span>
+                      </div>
+                    ) : (
+                      <span style={{ 
+                        color: '#334155', 
+                        fontSize: '12.5px',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        display: 'block' 
+                      }} title={row.duAn || '—'}>
+                        {row.duAn || '—'}
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ fontWeight: 700, color: 'var(--primary)', textAlign: 'center' }}>{row.maNV}</td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div className="avatar" style={{ background: avatarColor(row.hoTen), flexShrink: 0 }}>{initials(row.hoTen)}</div>
+                        <span 
+                          onClick={() => setSelected(row)}
+                          style={{ 
+                            fontFamily: "'Roboto', sans-serif", 
+                            fontWeight: 600, 
+                            color: '#0f58a7', 
+                            letterSpacing: '0.01em',
+                            cursor: 'pointer',
+                            textDecoration: 'underline'
+                          }}
+                          title="Nhấp vào để xem thông tin chi tiết"
+                        >
+                          {row.hoTen}
+                        </span>
+                      </div>
+                      <button 
+                        onClick={() => setSelected(row)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: '4px',
+                          cursor: 'pointer',
+                          color: '#0f58a7',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: '4px',
+                          flexShrink: 0
+                        }}
+                        title="Xem thông tin chi tiết"
+                      >
+                        <Info size={15} />
+                      </button>
+                    </div>
+                  </td>
+                  <td><span className={`badge ${chucVuBadgeClass(row.chucVu)}`}>{row.chucVu}</span></td>
+                  <td style={{ textAlign: 'center' }}>{row.soDienThoai}</td>
+                  <td>{row.emailCongTy}</td>
+                  <td style={{ textAlign: 'center' }}>{formatDate(row.ngaySinh)}</td>
+                  <td>{row.trinhDo}</td>
+                  <td>
+                    <span className={`badge ${(row.trangThai && row.trangThai !== 'None') ? trangThaiBadgeClass(row.trangThai) : 'badge-gray'}`}>
+                      {(row.trangThai && row.trangThai !== 'None') ? row.trangThai : 'None'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`badge ${(row.danhGiaHieuSuat && row.danhGiaHieuSuat !== 'None') ? danhGiaBadgeClass(row.danhGiaHieuSuat) : 'badge-gray'}`}>
+                      {(row.danhGiaHieuSuat && row.danhGiaHieuSuat !== 'None') ? row.danhGiaHieuSuat : 'None'}
+                    </span>
+                  </td>
+                  <td>{row.ghiChu || '—'}</td>
+                </tr>
+              )
+            })}
             {filtered.length === 0 && (
-              <tr><td colSpan={12}>
+              <tr><td colSpan={13}>
                 <div className="empty-state">
                   <Search size={40} />
                   <h3>Không tìm thấy kết quả</h3>
@@ -665,6 +945,14 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload }) 
           onSave={handleSaveEditedRow} 
           onDelete={handleDeleteRow}
           showConfirm={showConfirm}
+          blocksConfig={blocksConfig}
+        />
+      )}
+      {selected && (
+        <DetailModal 
+          row={selected} 
+          onClose={() => setSelected(null)} 
+          onEdit={(row) => setEditingRow(row)} 
         />
       )}
       {showImportModal && (
@@ -1537,7 +1825,7 @@ function ImportModal({ data, onUpdateData, dbStatus, onReload, onClose, initialD
   )
 }
 
-function EditModal({ row, onClose, onSave, onDelete, showConfirm }) {
+function EditModal({ row, onClose, onSave, onDelete, showConfirm, blocksConfig = [] }) {
   const [formData, setFormData] = React.useState(() => {
     if (row && row.isNew) {
       return {
@@ -1718,17 +2006,59 @@ function EditModal({ row, onClose, onSave, onDelete, showConfirm }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={{ gridColumn: 'span 2' }}>
                   <label style={labelStyle}>Khối thi công *</label>
-                  <input type="text" required value={formData.banChuoiKhoi || ''} onChange={e => handleChange('banChuoiKhoi', e.target.value)} style={inputStyle} />
+                  <select
+                    required
+                    value={formData.banChuoiKhoi || ''}
+                    onChange={e => {
+                      const newBlockName = e.target.value;
+                      const block = blocksConfig.find(b => b.name === newBlockName);
+                      const firstProjName = (block && block.projects && block.projects.length > 0) ? block.projects[0].name : '';
+                      setFormData(prev => ({
+                        ...prev,
+                        banChuoiKhoi: newBlockName,
+                        duAn: firstProjName
+                      }));
+                    }}
+                    style={inputStyle}
+                  >
+                    <option value="" disabled>-- Chọn Khối thi công --</option>
+                    {blocksConfig.map(b => (
+                      <option key={b.id} value={b.name}>{b.name}</option>
+                    ))}
+                    {formData.banChuoiKhoi && !blocksConfig.some(b => b.name === formData.banChuoiKhoi) && (
+                      <option value={formData.banChuoiKhoi}>{formData.banChuoiKhoi}</option>
+                    )}
+                  </select>
                 </div>
                 <div style={{ gridColumn: 'span 2' }}>
                   <label style={labelStyle}>Dự án / Công trình</label>
-                  <input type="text" value={formData.duAn || ''} onChange={e => handleChange('duAn', e.target.value)} style={inputStyle} />
+                  <select
+                    value={formData.duAn || ''}
+                    onChange={e => handleChange('duAn', e.target.value)}
+                    style={inputStyle}
+                  >
+                    <option value="">-- Không có / Chọn Dự án --</option>
+                    {(() => {
+                      const currentBlock = blocksConfig.find(b => (b.name || '').trim().toLowerCase() === (formData.banChuoiKhoi || '').trim().toLowerCase());
+                      const availableProjects = currentBlock ? (currentBlock.projects || []) : [];
+                      return (
+                        <>
+                          {availableProjects.map(p => (
+                            <option key={p.id} value={p.name}>{p.name}</option>
+                          ))}
+                          {formData.duAn && !availableProjects.some(p => p.name === formData.duAn) && (
+                            <option value={formData.duAn}>{formData.duAn}</option>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </select>
                 </div>
                 <div>
                   <label style={labelStyle}>Chức danh *</label>
                   <select required value={formData.chucVu || ''} onChange={e => handleChange('chucVu', e.target.value)} style={inputStyle}>
                     <option value="Thủ kho hiện trường">Thủ kho hiện trường</option>
-                    <option value="Thủ kho trưởng hiện trường">Thủ kho trưởng hiện trường</option>
+                    <option value="Thủ kho nhập liệu">Thủ kho nhập liệu</option>
                     <option value="Trưởng nhóm kho">Trưởng nhóm kho</option>
                   </select>
                 </div>
@@ -1738,7 +2068,12 @@ function EditModal({ row, onClose, onSave, onDelete, showConfirm }) {
                 </div>
                 <div>
                   <label style={labelStyle}>Trạng thái hoạt động</label>
-                  <select value={formData.trangThai || ''} onChange={e => handleChange('trangThai', e.target.value)} style={inputStyle}>
+                  <select 
+                    value={(formData.trangThai === 'None' || !formData.trangThai) ? '' : formData.trangThai} 
+                    onChange={e => handleChange('trangThai', e.target.value || null)} 
+                    style={inputStyle}
+                  >
+                    <option value="">None</option>
                     <option value="Đang làm việc">Đang làm việc</option>
                     <option value="Nghỉ phép">Nghỉ phép</option>
                     <option value="Đã nghỉ việc">Đã nghỉ việc</option>
@@ -1746,7 +2081,12 @@ function EditModal({ row, onClose, onSave, onDelete, showConfirm }) {
                 </div>
                 <div>
                   <label style={labelStyle}>Đánh giá hiệu suất</label>
-                  <select value={formData.danhGiaHieuSuat || ''} onChange={e => handleChange('danhGiaHieuSuat', e.target.value)} style={inputStyle}>
+                  <select 
+                    value={(formData.danhGiaHieuSuat === 'None' || !formData.danhGiaHieuSuat) ? '' : formData.danhGiaHieuSuat} 
+                    onChange={e => handleChange('danhGiaHieuSuat', e.target.value || null)} 
+                    style={inputStyle}
+                  >
+                    <option value="">None</option>
                     <option value="Xuất sắc">Xuất sắc</option>
                     <option value="Tốt">Tốt</option>
                     <option value="Khá">Khá</option>
@@ -1756,7 +2096,20 @@ function EditModal({ row, onClose, onSave, onDelete, showConfirm }) {
                 </div>
                 <div style={{ gridColumn: 'span 2' }}>
                   <label style={labelStyle}>Ghi chú</label>
-                  <input type="text" value={formData.ghiChu || ''} onChange={e => handleChange('ghiChu', e.target.value)} style={inputStyle} placeholder="Nhập ghi chú thêm nếu có..." />
+                  <textarea 
+                    value={formData.ghiChu || ''} 
+                    onChange={e => handleChange('ghiChu', e.target.value)} 
+                    style={{ 
+                      ...inputStyle, 
+                      minHeight: '80px', 
+                      resize: 'vertical', 
+                      lineHeight: '1.5', 
+                      fontFamily: 'inherit',
+                      whiteSpace: 'pre-wrap'
+                    }} 
+                    placeholder="Nhập ghi chú thêm nếu có..."
+                    rows={3}
+                  />
                 </div>
               </div>
             </div>
