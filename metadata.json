@@ -1,0 +1,6 @@
+{
+  "name": "SGC | Quản Lý Thủ Kho Dự Án",
+  "description": "Hệ thống quản lý thông tin, hợp đồng, và dự án của đội ngũ thủ kho SGC.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
