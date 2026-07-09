@@ -6,7 +6,6 @@ import {
 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import { chucVuBadgeClass, avatarColor, initials } from '../constants.js'
-import DetailModal from './DetailModal.jsx'
 import EditModal from './EditModal.jsx'
 
 export default function DuAnTab({ data = [], onUpdateData, onReload }) {
@@ -22,7 +21,6 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
   const [activeTransferMenu, setActiveTransferMenu] = useState(null) // maNV of storekeeper showing menu
   
   // Selection and edit states
-  const [selectedStorekeeper, setSelectedStorekeeper] = useState(null)
   const [editingStorekeeper, setEditingStorekeeper] = useState(null)
 
   const handleSaveStorekeeper = async (updatedRow) => {
@@ -1047,7 +1045,8 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
                       draggable
                       onDragStart={(e) => handleDragStart(e, tk)}
                       onDragEnd={() => setDraggedStorekeeper(null)}
-                      onDoubleClick={() => setSelectedStorekeeper(tk)}
+                      onDoubleClick={() => setEditingStorekeeper(tk)}
+                      title="Nhấp đúp chuột vào thẻ để chỉnh sửa thông tin thủ kho"
                       style={{
                         backgroundColor: cardStyle?.bgColor || '#ffffff',
                         padding: '10px 12px',
@@ -1161,9 +1160,21 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
                           {tk.chucVu}
                         </span>
                         {tk.soDienThoai && (
-                          <span style={{ fontSize: 10.5, color: '#64748b', fontWeight: 500 }}>
+                          <a 
+                            href={`tel:${tk.soDienThoai}`}
+                            onClick={(e) => e.stopPropagation()}
+                            onDoubleClick={(e) => e.stopPropagation()}
+                            style={{ 
+                              fontSize: 10.5, 
+                              color: '#0f58a7', 
+                              fontWeight: 600,
+                              textDecoration: 'underline',
+                              cursor: 'pointer',
+                              display: 'inline-block'
+                            }}
+                          >
                             📞 {tk.soDienThoai}
-                          </span>
+                          </a>
                         )}
                       </div>
                     </div>
@@ -1184,13 +1195,7 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
         />
       )}
 
-      {selectedStorekeeper && (
-        <DetailModal 
-          row={selectedStorekeeper} 
-          onClose={() => setSelectedStorekeeper(null)} 
-          onEdit={(row) => setEditingStorekeeper(row)} 
-        />
-      )}
+
 
       {editingStorekeeper && (
         <EditModal 

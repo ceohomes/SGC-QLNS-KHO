@@ -7,7 +7,6 @@ import { trangThaiBadgeClass, chucVuBadgeClass, danhGiaBadgeClass, formatDate, a
 import { exportThuKhoExcel } from '../excelExporter.js'
 import CustomAlert from './CustomAlert.jsx'
 import ExcelJS from 'exceljs'
-import DetailModal from './DetailModal.jsx'
 import EditModal from './EditModal.jsx'
 
 const COLOR_PRESETS = [
@@ -47,7 +46,6 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload, in
   const [duAnFilter, setDuAnFilter] = useState('')
   const [chucVuFilter, setChucVuFilter] = useState('')
   const [trangThaiFilter, setTrangThaiFilter] = useState('')
-  const [selected, setSelected] = useState(null)
   const [editingRow, setEditingRow] = useState(null)
   const [showImportModal, setShowImportModal] = useState(false)
   const [initialImportedData, setInitialImportedData] = useState([])
@@ -74,7 +72,7 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload, in
       })
       
       if (matched.length > 0) {
-        setSelected(matched[0])
+        setEditingRow(matched[0])
       }
       
       // Clear parent trigger
@@ -856,7 +854,7 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload, in
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div className="avatar" style={{ background: avatarColor(row.hoTen), flexShrink: 0 }}>{initials(row.hoTen)}</div>
                       <span 
-                        onClick={() => setSelected(row)}
+                        onClick={() => setEditingRow(row)}
                         style={{ 
                           fontFamily: "'Roboto', sans-serif", 
                           fontWeight: 600, 
@@ -865,14 +863,24 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload, in
                           cursor: 'pointer',
                           textDecoration: 'underline'
                         }}
-                        title="Nhấp vào để xem thông tin chi tiết"
+                        title="Nhấp vào để chỉnh sửa thông tin thủ kho"
                       >
                         {row.hoTen}
                       </span>
                     </div>
                   </td>
                   <td><span className={`badge ${chucVuBadgeClass(row.chucVu)}`}>{row.chucVu}</span></td>
-                  <td style={{ textAlign: 'center' }}>{row.soDienThoai}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    {row.soDienThoai ? (
+                      <a 
+                        href={`tel:${row.soDienThoai}`} 
+                        style={{ color: '#0f58a7', textDecoration: 'underline', fontWeight: 600 }}
+                        title="Bấm để gọi"
+                      >
+                        {row.soDienThoai}
+                      </a>
+                    ) : '—'}
+                  </td>
                   <td>{row.emailCongTy}</td>
                   <td style={{ textAlign: 'center' }}>{formatDate(row.ngaySinh)}</td>
                   <td>{row.trinhDo}</td>
@@ -930,13 +938,7 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload, in
           blocksConfig={blocksConfig}
         />
       )}
-      {selected && (
-        <DetailModal 
-          row={selected} 
-          onClose={() => setSelected(null)} 
-          onEdit={(row) => setEditingRow(row)} 
-        />
-      )}
+
       {showImportModal && (
         <ImportModal 
           data={data} 
