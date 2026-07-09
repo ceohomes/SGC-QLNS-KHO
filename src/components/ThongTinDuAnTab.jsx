@@ -482,11 +482,36 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
         sort_order: idx
       }))
 
-      const { error: blockErr } = await supabase
-        .from('sgc_thong_tin_du_an_blocks')
-        .upsert(dbBlocks, { onConflict: 'id' })
+      let successBlock = false
+      let blockAttempts = 0
+      const maxBlockAttempts = 20
+      let currentDbBlocks = JSON.parse(JSON.stringify(dbBlocks))
 
-      if (blockErr) throw blockErr
+      while (!successBlock && blockAttempts < maxBlockAttempts) {
+        blockAttempts++
+        const { error: blockErr } = await supabase
+          .from('sgc_thong_tin_du_an_blocks')
+          .upsert(currentDbBlocks, { onConflict: 'id' })
+
+        if (!blockErr) {
+          successBlock = true
+          break
+        }
+
+        const errMsg = blockErr.message || ''
+        const match = errMsg.match(/Could not find the '(.*?)' column/)
+        if (match && match[1]) {
+          const missingColumn = match[1]
+          console.warn(`Pruning column [${missingColumn}] from sgc_thong_tin_du_an_blocks upsert. Retrying...`)
+          currentDbBlocks = currentDbBlocks.map(b => {
+            const copy = { ...b }
+            delete copy[missingColumn]
+            return copy
+          })
+        } else {
+          throw blockErr
+        }
+      }
 
       // 2. Đồng bộ projects lên sgc_thong_tin_du_an_projects
       const dbProjects = []
@@ -514,10 +539,36 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
 
       // Chèn tập dự án mới nếu có
       if (dbProjects.length > 0) {
-        const { error: insertErr } = await supabase
-          .from('sgc_thong_tin_du_an_projects')
-          .insert(dbProjects)
-        if (insertErr) throw insertErr
+        let successProj = false
+        let projAttempts = 0
+        const maxProjAttempts = 20
+        let currentDbProjects = JSON.parse(JSON.stringify(dbProjects))
+
+        while (!successProj && projAttempts < maxProjAttempts) {
+          projAttempts++
+          const { error: insertErr } = await supabase
+            .from('sgc_thong_tin_du_an_projects')
+            .insert(currentDbProjects)
+
+          if (!insertErr) {
+            successProj = true
+            break
+          }
+
+          const errMsg = insertErr.message || ''
+          const match = errMsg.match(/Could not find the '(.*?)' column/)
+          if (match && match[1]) {
+            const missingColumn = match[1]
+            console.warn(`Pruning column [${missingColumn}] from sgc_thong_tin_du_an_projects insert. Retrying...`)
+            currentDbProjects = currentDbProjects.map(p => {
+              const copy = { ...p }
+              delete copy[missingColumn]
+              return copy
+            })
+          } else {
+            throw insertErr
+          }
+        }
       }
 
       // 3. Đồng bộ lên danh_sach_thu_kho (nhân sự/kho)

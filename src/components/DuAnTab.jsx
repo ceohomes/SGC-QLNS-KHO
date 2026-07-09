@@ -334,22 +334,46 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
     setSuccessToast(null)
 
     try {
-      const promises = changesArray.map(change => {
-        return supabase
-          .from('danh_sach_thu_kho')
-          .update({
-            du_an: change.finalProjectName,
-            du_an_cong_trinh: change.finalProjectName,
-            khoi_thi_cong: change.finalBlockName,
-            ban_chuoi_khoi: change.finalBlockName,
-            trang_thai: change.finalTrangThai
-          })
-          .eq('ma_nv', change.maNV)
-      })
+      const updateStorekeeperConfig = async (change) => {
+        const payload = {
+          du_an: change.finalProjectName,
+          du_an_cong_trinh: change.finalProjectName,
+          khoi_thi_cong: change.finalBlockName,
+          ban_chuoi_khoi: change.finalBlockName,
+          trang_thai: change.finalTrangThai
+        }
+        
+        let success = false
+        let attempts = 0
+        const maxAttempts = 20
+        let currentPayload = { ...payload }
 
-      const results = await Promise.all(promises)
-      const errorResult = results.find(r => r.error)
-      if (errorResult) throw errorResult.error
+        while (!success && attempts < maxAttempts) {
+          attempts++
+          const { error } = await supabase
+            .from('danh_sach_thu_kho')
+            .update(currentPayload)
+            .eq('ma_nv', change.maNV)
+
+          if (!error) {
+            success = true
+            break
+          }
+
+          const errMsg = error.message || ''
+          const match = errMsg.match(/Could not find the '(.*?)' column/)
+          if (match && match[1]) {
+            const missingColumn = match[1]
+            console.warn(`Pruning column [${missingColumn}] which is missing in your Supabase table schema. Retrying...`)
+            delete currentPayload[missingColumn]
+          } else {
+            throw error
+          }
+        }
+      }
+
+      const promises = changesArray.map(change => updateStorekeeperConfig(change))
+      await Promise.all(promises)
 
       setSuccessToast(`Đã lưu cấu hình thành công! Đã đồng bộ ${changesArray.length} nhân sự.`)
       setPendingChanges({})
