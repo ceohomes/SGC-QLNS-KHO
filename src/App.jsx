@@ -89,9 +89,7 @@ export default function App() {
   const counts = useMemo(() => {
     return {
       dashboard: 0,
-      danhsach: data.length,
-      thongtinduan: 15,
-      duan: 15 // Số lượng cố định các dự án chính của công ty SGC
+      danhsach: data.length
     }
   }, [data])
 
@@ -156,7 +154,7 @@ export default function App() {
                 />
               )}
               {tab === 'thongtinduan' && <ThongTinDuAnTab data={data} onReload={loadData} />}
-              {tab === 'duan' && <DuAnTab data={data} />}
+              {tab === 'duan' && <DuAnTab data={data} onUpdateData={setData} onReload={loadData} />}
             </>
           )}
         </main>
