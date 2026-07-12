@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { LayoutDashboard, Users, Building, Building2 } from 'lucide-react'
+import { LayoutDashboard, Users, Building, Building2, ClipboardList } from 'lucide-react'
 
 const NAV_GROUPS = [
   {
@@ -14,6 +14,7 @@ const NAV_GROUPS = [
       { id: 'danhsach', label: 'Danh sách thủ kho', icon: <Users /> },
       { id: 'thongtinduan', label: 'Thông tin dự án', icon: <Building /> },
       { id: 'duan', label: 'Thống kê theo dự án', icon: <Building2 /> },
+      { id: 'dinhbien', label: 'Định biên nhân sự', icon: <ClipboardList /> },
     ]
   },
 ]

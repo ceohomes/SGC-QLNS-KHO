@@ -1168,7 +1168,7 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
                               fontSize: 10.5, 
                               color: '#0f58a7', 
                               fontWeight: 600,
-                              textDecoration: 'underline',
+                              textDecoration: 'none',
                               cursor: 'pointer',
                               display: 'inline-block'
                             }}

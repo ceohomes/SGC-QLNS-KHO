@@ -232,11 +232,49 @@ export default function EditModal({ row, onClose, onSave, onDelete, showConfirm,
                 </div>
                 <div>
                   <label style={labelStyle}>Chức danh *</label>
-                  <select required value={formData.chucVu || ''} onChange={e => handleChange('chucVu', e.target.value)} style={inputStyle}>
-                    <option value="Thủ kho hiện trường">Thủ kho hiện trường</option>
-                    <option value="Thủ kho nhập liệu">Thủ kho nhập liệu</option>
-                    <option value="Trưởng nhóm kho">Trưởng nhóm kho</option>
-                  </select>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', minHeight: '38px', alignItems: 'center' }}>
+                    {[
+                      { value: 'Thủ kho hiện trường', label: 'Thủ kho hiện trường', bg: '#f5f3ff', text: '#5b21b6', border: '#ddd6fe', activeBorder: '#8b5cf6' },
+                      { value: 'Thủ kho nhập liệu', label: 'Thủ kho nhập liệu', bg: '#eff6ff', text: '#1e40af', border: '#bfdbfe', activeBorder: '#3b82f6' },
+                      { value: 'Trưởng nhóm kho', label: 'Trưởng nhóm kho', bg: '#f0fdf4', text: '#166534', border: '#bbf7d0', activeBorder: '#22c55e' }
+                    ].map(opt => {
+                      const currentChucVu = formData.chucVu;
+                      const isSelected = currentChucVu === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => handleChange('chucVu', opt.value)}
+                          style={{
+                            background: opt.bg,
+                            color: opt.text,
+                            border: isSelected ? `2px solid ${opt.activeBorder}` : `1px solid ${opt.border}`,
+                            padding: '6px 12px',
+                            borderRadius: '20px',
+                            fontSize: '12.5px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            boxShadow: isSelected ? `0 0 0 3px ${opt.activeBorder}25` : 'none',
+                            opacity: isSelected ? 1 : 0.65,
+                            transition: 'all 0.15s ease',
+                            userSelect: 'none'
+                          }}
+                          onMouseOver={(e) => {
+                            if (!isSelected) e.currentTarget.style.opacity = '0.9';
+                          }}
+                          onMouseOut={(e) => {
+                            if (!isSelected) e.currentTarget.style.opacity = '0.65';
+                          }}
+                        >
+                          {isSelected && <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: opt.activeBorder, display: 'inline-block' }} />}
+                          <span>{opt.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div>
                   <label style={labelStyle}>Trình độ</label>
@@ -244,31 +282,99 @@ export default function EditModal({ row, onClose, onSave, onDelete, showConfirm,
                 </div>
                 <div>
                   <label style={labelStyle}>Trạng thái hoạt động</label>
-                  <select 
-                    value={(formData.trangThai === 'None' || !formData.trangThai) ? '' : formData.trangThai} 
-                    onChange={e => handleChange('trangThai', e.target.value || null)} 
-                    style={inputStyle}
-                  >
-                    <option value="">None</option>
-                    <option value="Đang làm việc">Đang làm việc</option>
-                    <option value="Nghỉ phép">Nghỉ phép</option>
-                    <option value="Đã nghỉ việc">Đã nghỉ việc</option>
-                  </select>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', minHeight: '38px', alignItems: 'center' }}>
+                    {[
+                      { value: '', label: 'None', bg: '#f8fafc', text: '#475569', border: '#e2e8f0', activeBorder: '#64748b' },
+                      { value: 'Đang làm việc', label: 'Đang làm việc', bg: '#ecfdf5', text: '#065f46', border: '#a7f3d0', activeBorder: '#10b981' },
+                      { value: 'Nghỉ phép', label: 'Nghỉ phép', bg: '#fffbeb', text: '#92400e', border: '#fde68a', activeBorder: '#f59e0b' },
+                      { value: 'Đã nghỉ việc', label: 'Đã nghỉ việc', bg: '#fff1f2', text: '#9f1239', border: '#fecdd3', activeBorder: '#ef4444' }
+                    ].map(opt => {
+                      const currentStatus = formData.trangThai;
+                      const isSelected = (currentStatus === opt.value) || (opt.value === '' && (currentStatus === 'None' || !currentStatus));
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => handleChange('trangThai', opt.value || null)}
+                          style={{
+                            background: opt.bg,
+                            color: opt.text,
+                            border: isSelected ? `2px solid ${opt.activeBorder}` : `1px solid ${opt.border}`,
+                            padding: '6px 12px',
+                            borderRadius: '20px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            boxShadow: isSelected ? `0 0 0 3px ${opt.activeBorder}25` : 'none',
+                            opacity: isSelected ? 1 : 0.65,
+                            transition: 'all 0.15s ease',
+                            userSelect: 'none'
+                          }}
+                          onMouseOver={(e) => {
+                            if (!isSelected) e.currentTarget.style.opacity = '0.9';
+                          }}
+                          onMouseOut={(e) => {
+                            if (!isSelected) e.currentTarget.style.opacity = '0.65';
+                          }}
+                        >
+                          {isSelected && <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: opt.activeBorder, display: 'inline-block' }} />}
+                          <span>{opt.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div>
                   <label style={labelStyle}>Đánh giá hiệu suất</label>
-                  <select 
-                    value={(formData.danhGiaHieuSuat === 'None' || !formData.danhGiaHieuSuat) ? '' : formData.danhGiaHieuSuat} 
-                    onChange={e => handleChange('danhGiaHieuSuat', e.target.value || null)} 
-                    style={inputStyle}
-                  >
-                    <option value="">None</option>
-                    <option value="Xuất sắc">Xuất sắc</option>
-                    <option value="Tốt">Tốt</option>
-                    <option value="Khá">Khá</option>
-                    <option value="Trung bình">Trung bình</option>
-                    <option value="Chưa đánh giá">Chưa đánh giá</option>
-                  </select>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', minHeight: '38px', alignItems: 'center' }}>
+                    {[
+                      { value: '', label: 'None', bg: '#f8fafc', text: '#475569', border: '#e2e8f0', activeBorder: '#64748b' },
+                      { value: 'Xuất sắc', label: 'Xuất sắc', bg: '#ecfdf5', text: '#065f46', border: '#a7f3d0', activeBorder: '#10b981' },
+                      { value: 'Tốt', label: 'Tốt', bg: '#f0f9ff', text: '#075985', border: '#bae6fd', activeBorder: '#0ea5e9' },
+                      { value: 'Khá', label: 'Khá', bg: '#fffbeb', text: '#92400e', border: '#fde68a', activeBorder: '#f59e0b' },
+                      { value: 'Trung bình', label: 'Trung bình', bg: '#faf5ff', text: '#6b21a8', border: '#e9d5ff', activeBorder: '#a855f7' },
+                      { value: 'Chưa đánh giá', label: 'Chưa đánh giá', bg: '#f1f5f9', text: '#334155', border: '#cbd5e1', activeBorder: '#475569' }
+                    ].map(opt => {
+                      const currentVal = formData.danhGiaHieuSuat;
+                      const isSelected = (currentVal === opt.value) || (opt.value === '' && (currentVal === 'None' || !currentVal));
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => handleChange('danhGiaHieuSuat', opt.value || null)}
+                          style={{
+                            background: opt.bg,
+                            color: opt.text,
+                            border: isSelected ? `2px solid ${opt.activeBorder}` : `1px solid ${opt.border}`,
+                            padding: '6px 12px',
+                            borderRadius: '20px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            boxShadow: isSelected ? `0 0 0 3px ${opt.activeBorder}25` : 'none',
+                            opacity: isSelected ? 1 : 0.65,
+                            transition: 'all 0.15s ease',
+                            userSelect: 'none'
+                          }}
+                          onMouseOver={(e) => {
+                            if (!isSelected) e.currentTarget.style.opacity = '0.9';
+                          }}
+                          onMouseOut={(e) => {
+                            if (!isSelected) e.currentTarget.style.opacity = '0.65';
+                          }}
+                        >
+                          {isSelected && <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: opt.activeBorder, display: 'inline-block' }} />}
+                          <span>{opt.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div style={{ gridColumn: 'span 2' }}>
                   <label style={labelStyle}>Ghi chú</label>

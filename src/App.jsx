@@ -5,6 +5,7 @@ import DashboardTab from './components/DashboardTab.jsx'
 import DanhSachTab from './components/DanhSachTab.jsx'
 import ThongTinDuAnTab from './components/ThongTinDuAnTab.jsx'
 import DuAnTab from './components/DuAnTab.jsx'
+import DinhBienTab from './components/DinhBienTab.jsx'
 import { THU_KHO_DATA } from './mockData.js'
 import { supabase } from './supabaseClient'
 
@@ -155,6 +156,7 @@ export default function App() {
               )}
               {tab === 'thongtinduan' && <ThongTinDuAnTab data={data} onReload={loadData} />}
               {tab === 'duan' && <DuAnTab data={data} onUpdateData={setData} onReload={loadData} />}
+              {tab === 'dinhbien' && <DinhBienTab data={data} onReload={loadData} />}
             </>
           )}
         </main>

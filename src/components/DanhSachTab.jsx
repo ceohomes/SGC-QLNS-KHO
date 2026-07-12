@@ -854,16 +854,13 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload, in
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div className="avatar" style={{ background: avatarColor(row.hoTen), flexShrink: 0 }}>{initials(row.hoTen)}</div>
                       <span 
-                        onClick={() => setEditingRow(row)}
                         style={{ 
                           fontFamily: "'Roboto', sans-serif", 
                           fontWeight: 600, 
                           color: '#0f58a7', 
-                          letterSpacing: '0.01em',
-                          cursor: 'pointer',
-                          textDecoration: 'underline'
+                          letterSpacing: '0.01em'
                         }}
-                        title="Nhấp vào để chỉnh sửa thông tin thủ kho"
+                        title="Nhấp đúp chuột vào dòng để chỉnh sửa thông tin"
                       >
                         {row.hoTen}
                       </span>
@@ -874,7 +871,7 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload, in
                     {row.soDienThoai ? (
                       <a 
                         href={`tel:${row.soDienThoai}`} 
-                        style={{ color: '#0f58a7', textDecoration: 'underline', fontWeight: 600 }}
+                        style={{ color: '#0f58a7', textDecoration: 'none', fontWeight: 600 }}
                         title="Bấm để gọi"
                       >
                         {row.soDienThoai}

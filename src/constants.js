@@ -2,7 +2,7 @@ export function trangThaiBadgeClass(trangThai) {
   switch (trangThai) {
     case 'Đang làm việc': return 'badge-green'
     case 'Nghỉ phép': return 'badge-yellow'
-    case 'Đã nghỉ việc': return 'badge-gray'
+    case 'Đã nghỉ việc': return 'badge-red'
     default: return 'badge-gray'
   }
 }
