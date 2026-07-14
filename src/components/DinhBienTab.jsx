@@ -407,7 +407,7 @@ export default function DinhBienTab({ data = [], onReload }) {
         attempts++
         const { error } = await supabase
           .from('sgc_dinh_bien_nhan_su')
-          .upsert(currentPayload, { onConflict: 'project_name,month' })
+          .upsert(currentPayload, { onConflict: 'id' })
 
         if (!error) {
           success = true
