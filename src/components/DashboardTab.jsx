@@ -111,6 +111,35 @@ const CustomXAxisTick = ({ x, y, payload }) => {
   );
 };
 
+const CustomLegend = () => {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '24px', fontSize: '13px', fontWeight: 700, paddingBottom: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{
+          width: '11px',
+          height: '11px',
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #ef4444 0%, #10b981 40%, #2563eb 70%, #a855f7 100%)',
+          display: 'inline-block',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+        }} />
+        <span style={{ color: '#334155' }}>Thực tế</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{
+          width: '11px',
+          height: '11px',
+          borderRadius: '50%',
+          backgroundColor: '#94a3b8',
+          display: 'inline-block',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+        }} />
+        <span style={{ color: '#334155' }}>Định biên</span>
+      </div>
+    </div>
+  );
+};
+
 export default function DashboardTab({ data = [], onNavigateToTab }) {
   const [blocks, setBlocks] = useState([])
   const [selectedMonth, setSelectedMonth] = useState('2026-07')
@@ -659,10 +688,9 @@ export default function DashboardTab({ data = [], onNavigateToTab }) {
                 }}
               />
               <Legend 
+                content={<CustomLegend />}
                 verticalAlign="top" 
                 height={36} 
-                iconType="circle"
-                wrapperStyle={{ fontSize: '12px', fontWeight: 600, paddingBottom: 10 }} 
               />
               <Bar 
                 name="Thực tế"
