@@ -1,10 +1,11 @@
 import React, { useMemo, useState, useEffect } from 'react'
-import { Search, Download, X, Phone, Mail, Building, Layers, Upload, Check, Database, Copy, AlertCircle, FileSpreadsheet, AlertTriangle, Info, MapPin, Calendar, Briefcase, Warehouse, Award, ShieldCheck, Pencil, Trash2, Plus } from 'lucide-react'
+import { Search, Download, X, Phone, Mail, Building, Layers, Upload, Check, Database, Copy, AlertCircle, FileSpreadsheet, AlertTriangle, Info, MapPin, Calendar, Briefcase, Warehouse, Award, ShieldCheck, Pencil, Trash2, Plus, Eye } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import * as XLSX from 'xlsx'
 import { DU_AN_LIST } from '../mockData.js'
 import { trangThaiBadgeClass, chucVuBadgeClass, danhGiaBadgeClass, formatDate, avatarColor, initials } from '../constants.js'
 import { exportThuKhoExcel } from '../excelExporter.js'
+import { buildThuKhoDbPayload } from '../storekeeperSchema.js'
 import CustomAlert from './CustomAlert.jsx'
 import ExcelJS from 'exceljs'
 import EditModal from './EditModal.jsx'
@@ -41,8 +42,8 @@ const getModernColors = (colorHex) => {
   }
 }
 
-export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload, initialDuAnFilter, setInitialDuAnFilter }) {
-  const [search, setSearch] = useState('')
+export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload, initialDuAnFilter, setInitialDuAnFilter, initialSearch, setInitialSearch }) {
+  const [search, setSearch] = useState(initialSearch || '')
   const [duAnFilter, setDuAnFilter] = useState('')
   const [chucVuFilter, setChucVuFilter] = useState('')
   const [trangThaiFilter, setTrangThaiFilter] = useState('')
@@ -53,6 +54,13 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload, in
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(100)
   const [alertConfig, setAlertConfig] = useState(null)
+
+  useEffect(() => {
+    if (initialSearch) {
+      setSearch(initialSearch)
+      if (setInitialSearch) setInitialSearch('')
+    }
+  }, [initialSearch, setInitialSearch])
 
   // Block/Project colors configurations from Supabase or LocalStorage
   const [blocksConfig, setBlocksConfig] = useState([])
@@ -182,45 +190,7 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload, in
         }
       }
 
-      const payload = {
-        stt: updatedRow.stt,
-        ma_nv: updatedRow.maNV,
-        ho_ten: updatedRow.hoTen,
-        gioi_tinh: updatedRow.gioiTinh,
-        ngay_sinh: updatedRow.ngaySinh || null,
-        tuoi: updatedRow.ngaySinh ? (new Date().getFullYear() - new Date(updatedRow.ngaySinh).getFullYear()) : null,
-        so_dien_thoai: updatedRow.soDienThoai,
-        dien_thoai: updatedRow.soDienThoai,
-        email_cong_ty: updatedRow.emailCongTy,
-        email: updatedRow.emailCongTy,
-        ban_chuoi_khoi: updatedRow.banChuoiKhoi,
-        khoi_thi_cong: updatedRow.banChuoiKhoi,
-        phong_vung_mien: updatedRow.phongVungMien,
-        cccd: updatedRow.cccd,
-        que_quan: updatedRow.queQuan,
-        ngay_vao_lam: updatedRow.ngayVaoLam || null,
-        so_nam_kinh_nghiem: updatedRow.soNamKinhNghiem ? Number(updatedRow.soNamKinhNghiem) : null,
-        trinh_do: updatedRow.trinhDo,
-        chuyen_nganh: updatedRow.chuyenNganh,
-        chuc_vu: updatedRow.chucVu,
-        chuc_danh: updatedRow.chucVu,
-        du_an_id: updatedRow.duAnId,
-        du_an: updatedRow.duAn,
-        du_an_cong_trinh: updatedRow.duAn,
-        kho_phu_trach: updatedRow.khoPhuTrach,
-        so_luong_kho_quan_ly: updatedRow.soLuongKhoQuanLy ? Number(updatedRow.soLuongKhoQuanLy) : null,
-        gia_tri_ton_kho_quan_ly: updatedRow.giaTriTonKhoQuanLy ? Number(updatedRow.giaTriTonKhoQuanLy) : null,
-        loai_hop_dong: updatedRow.loaiHopDong,
-        ngay_het_han_hd: updatedRow.ngayHetHanHD || null,
-        trang_thai: updatedRow.trangThai,
-        luong_co_ban: updatedRow.luongCoBan ? Number(updatedRow.luongCoBan) : null,
-        chung_chi_nghiep_vu_kho: updatedRow.chungChiNghiepVuKho,
-        chung_chi_atld: updatedRow.chungChiATLD,
-        danh_gia_hieu_suat: updatedRow.danhGiaHieuSuat,
-        danh_gia: updatedRow.danhGiaHieuSuat,
-        so_dien_thoai_khan_cap: updatedRow.soDienThoaiKhanCap,
-        ghi_chu: updatedRow.ghiChu
-      }
+      const payload = buildThuKhoDbPayload(updatedRow)
 
       if (updatedRow.isNew && !payload.stt) {
         const maxStt = data.reduce((max, item) => Math.max(max, Number(item.stt) || 0), 0)
@@ -756,6 +726,7 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload, in
               <th style={{ minWidth: 130 }}>Trạng thái</th>
               <th style={{ minWidth: 110 }}>Đánh giá</th>
               <th style={{ minWidth: 200 }}>Ghi chú</th>
+              <th style={{ minWidth: 95, textAlign: 'center' }}>Hồ sơ CV</th>
             </tr>
           </thead>
           <tbody>
@@ -765,10 +736,10 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload, in
 
               return (
                 <tr 
-                  key={row.maNV} 
-                  onDoubleClick={() => handleRowClick(row)}
+                  key={row.maNV || row.stt} 
+                  onClick={() => handleRowClick(row)}
                   style={{ cursor: 'pointer' }}
-                  title="Nhấp đúp chuột vào dòng để chỉnh sửa thông tin thủ kho"
+                  title="Nhấp chuột vào dòng để xem CV và thông tin chi tiết thủ kho"
                 >
                   <td style={{ textAlign: 'center' }}>{row.stt}</td>
                   <td style={{ width: 145, minWidth: 145, maxWidth: 145, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -887,16 +858,50 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload, in
                     </span>
                   </td>
                   <td>
-                    <span className={`badge ${(row.danhGiaHieuSuat && row.danhGiaHieuSuat !== 'None') ? danhGiaBadgeClass(row.danhGiaHieuSuat) : 'badge-gray'}`}>
-                      {(row.danhGiaHieuSuat && row.danhGiaHieuSuat !== 'None') ? row.danhGiaHieuSuat : 'None'}
-                    </span>
+                    {row.diemPhuHop != null && Number(row.diemPhuHop) > 0 ? (
+                      <span className={`badge ${row.diemPhuHop >= 8 ? 'badge-green' : (row.diemPhuHop >= 6.5 ? 'badge-blue' : 'badge-yellow')}`}>
+                        {row.diemPhuHop}/10
+                      </span>
+                    ) : (row.danhGiaHieuSuat && row.danhGiaHieuSuat !== 'None' ? (
+                      <span className={`badge ${danhGiaBadgeClass(row.danhGiaHieuSuat)}`}>
+                        {row.danhGiaHieuSuat}
+                      </span>
+                    ) : (
+                      <span style={{ color: '#94a3b8' }}>—</span>
+                    ))}
                   </td>
                   <td>{row.ghiChu || '—'}</td>
+                  <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRowClick(row)
+                      }}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #cbd5e1',
+                        background: '#f8fafc',
+                        color: '#0f58a7',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}
+                      title="Xem CV và thông tin chi tiết thủ kho"
+                    >
+                      <Eye size={13} />
+                      <span>Xem CV</span>
+                    </button>
+                  </td>
                 </tr>
               )
             })}
             {filtered.length === 0 && (
-              <tr><td colSpan={13}>
+              <tr><td colSpan={14}>
                 <div className="empty-state">
                   <Search size={40} />
                   <h3>Không tìm thấy kết quả</h3>

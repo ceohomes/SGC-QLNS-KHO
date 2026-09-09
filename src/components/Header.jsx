@@ -3,9 +3,11 @@ import { RefreshCw, Database, User as UserIconLucide } from 'lucide-react'
 
 const TAB_TITLES = {
   dashboard: 'SGC | QUẢN LÝ NHÂN SỰ THỦ KHO',
+  tuyendung: 'SGC | TUYỂN DỤNG NHÂN SỰ',
   danhsach: 'SGC | DANH SÁCH THỦ KHO',
   thongtinduan: 'SGC | THÔNG TIN DỰ ÁN',
-  duan: 'SGC | THỐNG KÊ THEO DỰ ÁN',
+  duan: 'SGC | PHÂN BỔ & LUÂN CHUYỂN DỰ ÁN',
+  dinhbien: 'SGC | ĐỊNH BIÊN NHÂN SỰ',
 }
 
 export default function Header({ activeTab, onRefresh, lastUpdated, dbStatus }) {

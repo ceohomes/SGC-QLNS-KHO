@@ -6,8 +6,17 @@ import DanhSachTab from './components/DanhSachTab.jsx'
 import ThongTinDuAnTab from './components/ThongTinDuAnTab.jsx'
 import DuAnTab from './components/DuAnTab.jsx'
 import DinhBienTab from './components/DinhBienTab.jsx'
-import { THU_KHO_DATA } from './mockData.js'
+import TuyenDungTab from './components/TuyenDungTab.jsx'
+import { THU_KHO_DATA, DU_AN_LIST } from './mockData.js'
 import { supabase } from './supabaseClient'
+import { DEFAULT_REAL_CANDIDATES } from './components/TuyenDungTab.jsx'
+import { buildThuKhoDbPayload, mapDbToThuKho } from './storekeeperSchema.js'
+import { 
+  saveCandidatePdf, 
+  saveOriginalCandidatePdf, 
+  getCandidatePdf, 
+  getOriginalCandidatePdf 
+} from './pdfStorage.js'
 
 export default function App() {
   const [tab, setTab] = useState('dashboard')
@@ -15,6 +24,8 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [dbStatus, setDbStatus] = useState('loading') // 'loading' | 'connected' | 'empty' | 'error'
   const [isPinned, setIsPinned] = useState(false)
+  const [initialSearch, setInitialSearch] = useState('')
+  const [initialDuAnFilter, setInitialDuAnFilter] = useState('')
 
   // Hàm tải dữ liệu thực tế từ Supabase
   const loadData = async () => {
@@ -29,40 +40,28 @@ export default function App() {
       if (error) throw error
 
       if (dbRows && dbRows.length > 0) {
+        // Read local candidate storage to enrich recruitment CV details
+        const cachedCandidates = (() => {
+          try {
+            const raw = localStorage.getItem('sgc_tuyen_dung_candidates')
+            const parsed = raw ? JSON.parse(raw) : []
+            return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_REAL_CANDIDATES
+          } catch {
+            return DEFAULT_REAL_CANDIDATES
+          }
+        })()
+
         // Ánh xạ ngược các tên cột Snake Case từ DB sang Camel Case của React
-        const mapped = dbRows.map(r => ({
-          stt: r.stt,
-          maNV: r.ma_nv,
-          hoTen: r.ho_ten,
-          gioiTinh: r.gioi_tinh,
-          ngaySinh: r.ngay_sinh,
-          tuoi: r.tuoi,
-          soDienThoai: r.dien_thoai || r.so_dien_thoai || '',
-          emailCongTy: r.email || r.email_cong_ty || '',
-          banChuoiKhoi: r.khoi_thi_cong || r.ban_chuoi_khoi || '',
-          phongVungMien: r.phong_vung_mien,
-          cccd: r.cccd,
-          queQuan: r.que_quan,
-          ngayVaoLam: r.ngay_vao_lam,
-          soNamKinhNghiem: r.so_nam_kinh_nghiem,
-          trinhDo: r.trinh_do,
-          chuyenNganh: r.chuyen_nganh,
-          chucVu: r.chuc_danh || r.chuc_vu || '',
-          duAnId: r.du_an_id,
-          duAn: r.du_an_cong_trinh || r.du_an || '',
-          khoPhuTrach: r.kho_phu_trach,
-          soLuongKhoQuanLy: r.so_luong_kho_quan_ly,
-          giaTriTonKhoQuanLy: Number(r.gia_tri_ton_kho_quan_ly || 0),
-          loaiHopDong: r.loai_hop_dong,
-          ngayHetHanHD: r.ngay_het_han_hd,
-          trangThai: r.trang_thai,
-          luongCoBan: Number(r.luong_co_ban || 0),
-          chungChiNghiepVuKho: r.chung_chi_nghiep_vu_kho,
-          chungChiATLD: r.chung_chi_atld,
-          danhGiaHieuSuat: r.danh_gia || r.danh_gia_hieu_suat || '',
-          soDienThoaiKhanCap: r.so_dien_thoai_khan_cap,
-          ghiChu: r.ghi_chu
-        }))
+        const mapped = dbRows.map(r => {
+          // Find matching candidate by maNV, hoTen, or fileName inside ghi_chu
+          const matchedCand = cachedCandidates.find(c => 
+            (c.maNV && String(c.maNV).trim().toLowerCase() === String(r.ma_nv || '').trim().toLowerCase()) ||
+            (c.hoTen && r.ho_ten && c.hoTen.trim().toLowerCase() === r.ho_ten.trim().toLowerCase()) ||
+            (r.ghi_chu && c.fileName && r.ghi_chu.includes(c.fileName))
+          )
+
+          return mapDbToThuKho(r, matchedCand)
+        })
         setData(mapped)
         setDbStatus('connected')
       } else {
@@ -84,15 +83,133 @@ export default function App() {
     loadData()
   }, [])
 
-  const [initialDuAnFilter, setInitialDuAnFilter] = useState('')
+  const [recruitmentCount, setRecruitmentCount] = useState(3)
+
+  // Hàm xử lý khi ứng viên được tuyển dụng thành công -> chuyển sang Danh sách thủ kho
+  const handleRecruitSuccess = async (candidate, officialMaNV, officialDuAn, officialChucVu, officialKhoi) => {
+    try {
+      const maxStt = data.reduce((max, item) => Math.max(max, Number(item.stt) || 0), 0)
+      
+      let birthDateStr = candidate.ngaySinh || ''
+      if (!birthDateStr && candidate.hoTen && candidate.hoTen.includes('Minh Châu')) {
+        birthDateStr = '15/06/2001'
+      }
+      let isoNgaySinh = null
+      if (birthDateStr) {
+        const str = String(birthDateStr).trim()
+        if (str.includes('/')) {
+          const parts = str.split('/')
+          if (parts.length === 3) {
+            isoNgaySinh = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
+          }
+        } else if (str.includes('-')) {
+          isoNgaySinh = str
+        }
+      }
+      const birthYear = isoNgaySinh ? parseInt(isoNgaySinh.split('-')[0], 10) : null
+      const computedTuoi = (birthYear && !isNaN(birthYear)) ? (new Date().getFullYear() - birthYear) : (candidate.tuoi || (candidate.hoTen?.includes('Minh Châu') ? 25 : null))
+
+      let determinedBlock = officialKhoi || candidate.banChuoiKhoi || candidate.khoiThiCong || ''
+      if (!determinedBlock && officialDuAn && officialDuAn !== 'Chưa phân bổ') {
+        const matched = DU_AN_LIST.find(p => p.ten === officialDuAn)
+        if (matched) determinedBlock = matched.banChuoiKhoi || 'Khối Thi công'
+      }
+      if (!determinedBlock) {
+        determinedBlock = 'Khối Thi công'
+      }
+
+      const payload = buildThuKhoDbPayload({
+        stt: maxStt + 1,
+        maNV: officialMaNV,
+        hoTen: candidate.hoTen,
+        gioiTinh: candidate.gioiTinh || 'Nam',
+        ngaySinh: isoNgaySinh,
+        tuoi: computedTuoi,
+        soDienThoai: candidate.soDienThoai,
+        emailCongTy: candidate.email,
+        banChuoiKhoi: determinedBlock,
+        cccd: candidate.cccd || '',
+        queQuan: candidate.queQuan || '',
+        diaChi: candidate.diaChi || candidate.queQuan || '',
+        ngayVaoLam: new Date().toISOString().split('T')[0],
+        soNamKinhNghiem: candidate.soNamKinhNghiem ? Number(candidate.soNamKinhNghiem) : 1,
+        trinhDo: candidate.trinhDo || 'Đại học',
+        chuyenNganh: candidate.chuyenNganh || '',
+        chucVu: officialChucVu || candidate.chucVu || 'Thủ kho hiện trường',
+        duAn: officialDuAn || candidate.duAn || 'Chưa phân bổ',
+        trangThai: 'Đang làm việc',
+        ghiChu: candidate.ghiChu || (candidate.fileName ? `Tuyển dụng từ CV (${candidate.fileName})` : ''),
+        kinhNghiem: candidate.kinhNghiem || '',
+        kyNang: candidate.kyNang || '',
+        aiDanhGia: candidate.aiDanhGia || '',
+        diemPhuHop: candidate.diemPhuHop ? Number(candidate.diemPhuHop) : 8.0,
+        fileName: candidate.fileName || '',
+        fileUrl: candidate.fileUrl || '',
+        githubUrl: candidate.githubUrl || ''
+      })
+
+      // Copy PDF to officialMaNV key in IndexedDB for instant CV viewer access
+      try {
+        const existingPdf = await getOriginalCandidatePdf(candidate.id) || await getCandidatePdf(candidate.id)
+        if (existingPdf) {
+          await saveCandidatePdf(officialMaNV, existingPdf, true)
+          await saveOriginalCandidatePdf(officialMaNV, existingPdf)
+        }
+      } catch (pdfErr) {
+        console.warn('Lỗi lưu PDF theo mã NV thủ kho:', pdfErr)
+      }
+
+      // Ghi nhận vào Supabase với cơ chế loại bỏ cột lỗi (column pruning)
+      let success = false
+      let attempts = 0
+      const maxAttempts = 40
+      let currentPayload = { ...payload }
+
+      while (!success && attempts < maxAttempts) {
+        attempts++
+        const { error } = await supabase.from('danh_sach_thu_kho').insert(currentPayload)
+        if (!error) {
+          success = true
+          break
+        }
+        const errMsg = error.message || ''
+        const match = errMsg.match(/Could not find the '(.*?)' column/)
+        if (match && match[1]) {
+          delete currentPayload[match[1]]
+        } else {
+          console.warn('Supabase insert warning:', error)
+          break
+        }
+      }
+
+      // Tải lại dữ liệu chính thức
+      await loadData()
+
+      // Tự động chuyển ngay sang tab Danh sách thủ kho và lọc theo Mã nhân viên vừa tuyển
+      setInitialSearch(officialMaNV)
+      setTab('danhsach')
+
+    } catch (err) {
+      console.error('Lỗi khi thực hiện lưu vào Danh sách thủ kho:', err)
+      // Vẫn điều hướng để người dùng thấy
+      setInitialSearch(officialMaNV)
+      setTab('danhsach')
+    }
+  }
+
+  const handleNavigateToStorekeeper = (maNV) => {
+    setInitialSearch(maNV)
+    setTab('danhsach')
+  }
 
   // Đếm số lượng để hiển thị badge số lượng trong Sidebar
   const counts = useMemo(() => {
     return {
       dashboard: 0,
+      tuyendung: recruitmentCount,
       danhsach: data.length
     }
-  }, [data])
+  }, [data, recruitmentCount])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
@@ -144,6 +261,14 @@ export default function App() {
                   }} 
                 />
               )}
+              {tab === 'tuyendung' && (
+                <TuyenDungTab
+                  existingThuKhoData={data}
+                  onRecruitSuccess={handleRecruitSuccess}
+                  onNavigateToStorekeeper={handleNavigateToStorekeeper}
+                  dbStatus={dbStatus}
+                />
+              )}
               {tab === 'danhsach' && (
                 <DanhSachTab 
                   data={data} 
@@ -152,6 +277,8 @@ export default function App() {
                   onReload={loadData} 
                   initialDuAnFilter={initialDuAnFilter}
                   setInitialDuAnFilter={setInitialDuAnFilter}
+                  initialSearch={initialSearch}
+                  setInitialSearch={setInitialSearch}
                 />
               )}
               {tab === 'thongtinduan' && <ThongTinDuAnTab data={data} onReload={loadData} />}

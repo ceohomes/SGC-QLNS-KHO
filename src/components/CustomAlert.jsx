@@ -129,7 +129,7 @@ export default function CustomAlert({ type = 'alert', title, message, severity =
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 9999,
+      zIndex: 99999,
       padding: 16
     }}>
       <div style={{

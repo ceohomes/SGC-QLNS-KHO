@@ -4,21 +4,31 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "tsx server.ts",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "start": "node dist/server.cjs",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/genai": "^2.21.0",
     "@supabase/supabase-js": "^2.110.0",
     "exceljs": "^4.4.0",
+    "express": "^5.2.1",
     "lucide-react": "^0.383.0",
+    "mammoth": "^1.12.2",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.3.289",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.12.7",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.5.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.13",
     "vite": "^5.4.2"
   }
 }
