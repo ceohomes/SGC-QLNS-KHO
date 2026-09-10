@@ -921,7 +921,7 @@ export default function DinhBienTab({ data = [], onReload }) {
                           >
                             {/* Cột 1: Tên dự án */}
                             <td style={{ padding: '10px 14px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
                                 <span style={{
                                   fontSize: 9.5,
                                   fontWeight: 800,
@@ -929,11 +929,13 @@ export default function DinhBienTab({ data = [], onReload }) {
                                   borderRadius: '3px',
                                   background: p.badgeBg || '#e2e8f0',
                                   color: p.color || '#475569',
-                                  whiteSpace: 'nowrap'
+                                  whiteSpace: 'nowrap',
+                                  marginTop: 2,
+                                  flexShrink: 0
                                 }}>
                                   {p.badge}
                                 </span>
-                                <span style={{ fontWeight: 600, color: '#1e293b', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '170px' }} title={p.name}>
+                                <span style={{ fontWeight: 600, color: '#1e293b', fontSize: 13, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.35 }} title={p.name}>
                                   {p.name}
                                 </span>
                                 {isRowChanged && (

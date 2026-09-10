@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import {
   Users, UserCheck, Building2, Warehouse, TrendingUp, BarChart2,
   AlertTriangle, PackageSearch
@@ -8,11 +8,10 @@ import {
 } from 'recharts'
 import StatCard from './StatCard.jsx'
 import { formatVND } from '../constants.js'
+import { supabase } from '../supabaseClient'
 
-const KHO_COLORS = ['#0f58a7', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#14b8a6', '#f97316']
-const KHO_COLOR_KHAC = '#94a3b8'
-const KHO_COLOR_UNASSIGNED = '#cbd5e1'
-const MAX_TYPES_SHOWN = 6
+const BLOCK_COLORS = ['#0f58a7', '#f97316', '#a855f7', '#10b981', '#ec4899', '#14b8a6', '#eab308']
+const UNASSIGNED_COLOR = '#94a3b8'
 
 const CustomXAxisTick = ({ x, y, payload }) => {
   const rawValue = payload?.value || ''
@@ -51,101 +50,125 @@ const CustomXAxisTick = ({ x, y, payload }) => {
 }
 
 export default function DashboardTab({ data = [], onNavigateToTab }) {
+  const [blocks, setBlocks] = useState([])
+
+  // Tải cấu hình Khối thi công & Ngăn kho — CÙNG một nguồn dữ liệu với sheet "Danh sách theo dự án"
+  // (bảng sgc_thong_tin_du_an_blocks / sgc_thong_tin_du_an_projects) để 2 sheet luôn khớp số liệu.
+  useEffect(() => {
+    const loadBlocks = async () => {
+      try {
+        const { data: dbBlocks, error: blocksErr } = await supabase
+          .from('sgc_thong_tin_du_an_blocks')
+          .select('*')
+          .order('sort_order', { ascending: true })
+        if (blocksErr) throw blocksErr
+
+        const { data: dbProjects, error: projsErr } = await supabase
+          .from('sgc_thong_tin_du_an_projects')
+          .select('*')
+          .order('sort_order', { ascending: true })
+        if (projsErr) throw projsErr
+
+        if (dbBlocks && dbBlocks.length > 0) {
+          const formattedBlocks = dbBlocks.map(b => {
+            const blockProjs = (dbProjects || [])
+              .filter(p => p.block_id === b.id)
+              .map(p => ({ id: p.id, name: p.name, badge: p.badge }))
+            return {
+              id: b.id,
+              name: b.name,
+              badge: b.badge,
+              color: b.color,
+              projects: blockProjs
+            }
+          })
+          setBlocks(formattedBlocks)
+        }
+      } catch (err) {
+        console.warn('Dashboard: không tải được cấu hình Khối/Ngăn kho, dùng dữ liệu thô từ Dự án:', err)
+        setBlocks([])
+      }
+    }
+    loadBlocks()
+  }, [])
+
+  // Danh sách Ngăn kho (dự án) phẳng, kèm Khối thi công đang chứa nó — đúng cấu trúc của sheet "Danh sách theo dự án"
+  const allProjectsFlat = useMemo(() => {
+    const list = []
+    blocks.forEach(b => {
+      (b.projects || []).forEach(p => {
+        if (p.name && !list.some(x => x.name.toLowerCase() === p.name.toLowerCase())) {
+          list.push({ name: p.name, blockName: b.name, blockColor: b.color })
+        }
+      })
+    })
+    return list
+  }, [blocks])
+
+  const getBlockColor = (blockName, index) => {
+    const found = blocks.find(b => (b.name || '').trim().toLowerCase() === (blockName || '').trim().toLowerCase())
+    if (found && found.color) return found.color
+    if (blockName === 'Chưa phân bổ') return UNASSIGNED_COLOR
+    return BLOCK_COLORS[index % BLOCK_COLORS.length]
+  }
+
   // Chỉ tính các thủ kho đang thực sự hoạt động (loại trừ đã nghỉ việc)
   const activeData = useMemo(() => data.filter(x => {
     const st = (x.trangThai || '').trim().toLowerCase()
     return st !== 'đã nghỉ việc' && st !== 'nghỉ việc'
   }), [data])
 
-  // ─── Tổng hợp tương quan Dự án ↔ Ngăn kho ───
+  // ─── Tổng hợp tương quan Khối thi công ↔ Ngăn kho (Dự án), lấy đúng theo dữ liệu "Dự án" của từng thủ kho ───
   const warehouseStats = useMemo(() => {
     const projectMap = {}
-    const typeTotals = {}
 
     activeData.forEach(item => {
-      const proj = (item.duAn || '').trim()
-      const projectName = proj && proj !== '—' && proj !== 'None' ? proj : 'Chưa phân bổ'
+      const rawProj = (item.duAn || '').trim()
+      const isKnown = rawProj && rawProj !== '—' && rawProj !== 'None'
+      const projectName = isKnown ? rawProj : 'Chưa phân bổ'
 
-      const rawType = (item.khoPhuTrach || '').toString().trim()
-      const type = rawType && rawType !== 'None' && rawType !== '—' ? rawType : null
+      const configMatch = allProjectsFlat.find(p => p.name.toLowerCase() === projectName.toLowerCase())
+      const blockName = configMatch ? configMatch.blockName : (projectName === 'Chưa phân bổ' ? 'Chưa phân bổ' : (item.banChuoiKhoi || 'Chưa phân bổ'))
 
-      const nganKho = item.soLuongKhoQuanLy != null && item.soLuongKhoQuanLy !== ''
-        ? Number(item.soLuongKhoQuanLy) || 0
-        : (type ? 1 : 0)
       const value = Number(item.giaTriTonKhoQuanLy) || 0
 
       if (!projectMap[projectName]) {
-        projectMap[projectName] = {
-          project: projectName,
-          totalThuKho: 0,
-          totalNganKho: 0,
-          totalValue: 0,
-          unassigned: 0,
-          byType: {}
-        }
+        projectMap[projectName] = { project: projectName, block: blockName, totalThuKho: 0, totalValue: 0 }
       }
       const p = projectMap[projectName]
       p.totalThuKho += 1
-      p.totalNganKho += nganKho
       p.totalValue += value
+    })
 
-      if (!type) {
-        p.unassigned += 1
-      } else {
-        if (!p.byType[type]) p.byType[type] = { count: 0, nganKho: 0, value: 0 }
-        p.byType[type].count += 1
-        p.byType[type].nganKho += nganKho
-        p.byType[type].value += value
-
-        if (!typeTotals[type]) typeTotals[type] = { nganKho: 0, value: 0, count: 0 }
-        typeTotals[type].nganKho += nganKho
-        typeTotals[type].value += value
-        typeTotals[type].count += 1
+    // Thêm các Ngăn kho đã cấu hình nhưng hiện chưa có thủ kho nào (để thấy được ngăn kho trống)
+    allProjectsFlat.forEach(p => {
+      if (!projectMap[p.name]) {
+        projectMap[p.name] = { project: p.name, block: p.blockName, totalThuKho: 0, totalValue: 0 }
       }
     })
 
-    const projects = Object.values(projectMap).sort((a, b) => b.totalNganKho - a.totalNganKho)
+    const projects = Object.values(projectMap).sort((a, b) => b.totalThuKho - a.totalThuKho)
 
-    const sortedTypeNames = Object.entries(typeTotals)
-      .sort((a, b) => b[1].nganKho - a[1].nganKho)
-      .map(([name]) => name)
-    const topTypes = sortedTypeNames.slice(0, MAX_TYPES_SHOWN)
-    const hasOther = sortedTypeNames.length > MAX_TYPES_SHOWN
+    const blockNamesInUse = Array.from(new Set(projects.filter(p => p.totalThuKho > 0).map(p => p.block)))
+    const blockColorMap = {}
+    blockNamesInUse.forEach((b, i) => { blockColorMap[b] = getBlockColor(b, i) })
 
-    const typeColorMap = {}
-    topTypes.forEach((t, i) => { typeColorMap[t] = KHO_COLORS[i % KHO_COLORS.length] })
-
-    const totalNganKho = projects.reduce((s, p) => s + p.totalNganKho, 0)
+    const totalNganKho = projects.filter(p => p.totalThuKho > 0).length
     const totalValue = projects.reduce((s, p) => s + p.totalValue, 0)
-    const totalUnassigned = projects.reduce((s, p) => s + p.unassigned, 0)
-    const totalProjects = projects.filter(p => p.project !== 'Chưa phân bổ' && p.totalNganKho > 0).length
+    const totalBlocks = blockNamesInUse.filter(b => b !== 'Chưa phân bổ').length
 
-    // Dữ liệu biểu đồ cột chồng: mỗi dự án 1 cột, chia theo loại ngăn kho
     const chartData = projects
-      .filter(p => p.totalNganKho > 0)
-      .map(p => {
-        const row = { project: p.project, __totalThuKho: p.totalThuKho }
-        let otherSum = 0
-        Object.entries(p.byType).forEach(([type, info]) => {
-          if (topTypes.includes(type)) {
-            row[type] = info.nganKho
-          } else {
-            otherSum += info.nganKho
-          }
-        })
-        if (hasOther) row['Khác'] = otherSum
-        return row
-      })
+      .filter(p => p.totalThuKho > 0)
+      .map(p => ({ project: p.project, block: p.block, thuKho: p.totalThuKho, value: p.totalValue }))
 
-    // Rủi ro: dự án có giá trị tồn kho bình quân/người cao nhất (áp lực trách nhiệm cao)
     const riskProjects = projects
       .filter(p => p.totalThuKho > 0 && p.totalValue > 0)
       .map(p => ({ ...p, avgValuePerPerson: p.totalValue / p.totalThuKho }))
       .sort((a, b) => b.avgValuePerPerson - a.avgValuePerPerson)
       .slice(0, 3)
 
-    return { projects, topTypes, hasOther, typeColorMap, totalNganKho, totalValue, totalUnassigned, totalProjects, chartData, riskProjects }
-  }, [activeData])
+    return { projects, blockColorMap, totalNganKho, totalValue, totalBlocks, chartData, riskProjects }
+  }, [activeData, allProjectsFlat, blocks])
 
   const stats = useMemo(() => {
     const total = data.length
@@ -159,7 +182,7 @@ export default function DashboardTab({ data = [], onNavigateToTab }) {
   return (
     <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 24, overflowY: 'auto', flex: 1, minHeight: 0 }}>
 
-      {/* Row 1: KPI tổng quan Dự án & Ngăn kho */}
+      {/* Row 1: KPI tổng quan Khối thi công & Ngăn kho */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20 }}>
         <StatCard
           icon={<Users />}
@@ -170,28 +193,28 @@ export default function DashboardTab({ data = [], onNavigateToTab }) {
         />
         <StatCard
           icon={<Building2 />}
-          label="Dự Án Đang Có Ngăn Kho"
-          value={warehouseStats.totalProjects}
-          sub="Dự án đang được thủ kho quản lý"
+          label="Khối Thi Công Đang Quản Lý"
+          value={warehouseStats.totalBlocks}
+          sub="Khối thi công đang có ngăn kho hoạt động"
           color="#f97316"
         />
         <StatCard
           icon={<Warehouse />}
-          label="Tổng Số Ngăn Kho Quản Lý"
+          label="Ngăn Kho Đang Hoạt Động"
           value={warehouseStats.totalNganKho}
-          sub={warehouseStats.totalUnassigned > 0 ? `${warehouseStats.totalUnassigned} thủ kho chưa gán loại ngăn kho` : 'Tất cả đã được phân loại'}
+          sub="Số dự án / ngăn kho đang có thủ kho phụ trách"
           color="#10b981"
         />
         <StatCard
           icon={<TrendingUp />}
           label="Tổng Giá Trị Tồn Kho Quản Lý"
           value={formatVND(warehouseStats.totalValue)}
-          sub="Tổng hợp trên toàn bộ dự án"
+          sub="Tổng hợp trên toàn bộ ngăn kho"
           color="#8b5cf6"
         />
       </div>
 
-      {/* Row 2: Biểu đồ tương quan Dự án ↔ Ngăn kho */}
+      {/* Row 2: Biểu đồ tương quan Khối thi công ↔ Ngăn kho */}
       <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -235,30 +258,24 @@ export default function DashboardTab({ data = [], onNavigateToTab }) {
                   <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} allowDecimals={false} />
                   <Tooltip
                     contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0', background: '#ffffff' }}
-                    formatter={(value, name) => [`${value} ngăn kho`, name]}
+                    formatter={(value, name, props) => [`${value} thủ kho`, `${props.payload.block}`]}
                   />
-                  <Legend wrapperStyle={{ fontSize: 12, fontWeight: 600, paddingTop: 12 }} />
-                  {warehouseStats.topTypes.map(type => (
-                    <Bar
-                      key={type}
-                      name={type}
-                      dataKey={type}
-                      stackId="kho"
-                      fill={warehouseStats.typeColorMap[type]}
-                      style={{ cursor: 'pointer' }}
-                    />
-                  ))}
-                  {warehouseStats.hasOther && (
-                    <Bar
-                      name="Khác"
-                      dataKey="Khác"
-                      stackId="kho"
-                      fill={KHO_COLOR_KHAC}
-                      style={{ cursor: 'pointer' }}
-                    />
-                  )}
+                  <Bar name="Số thủ kho phụ trách" dataKey="thuKho" radius={[4, 4, 0, 0]} maxBarSize={36} style={{ cursor: 'pointer' }}>
+                    {warehouseStats.chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={warehouseStats.blockColorMap[entry.block] || UNASSIGNED_COLOR} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+            {/* Chú giải màu theo Khối thi công */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', justifyContent: 'center', paddingTop: 12, borderTop: '1px solid #f1f5f9' }}>
+              {Object.entries(warehouseStats.blockColorMap).map(([name, color]) => (
+                <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+                  <span style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: color, display: 'inline-block' }} />
+                  <span style={{ color: '#334155', fontWeight: 600 }}>{name}</span>
+                </div>
+              ))}
             </div>
           </>
         )}
@@ -270,7 +287,7 @@ export default function DashboardTab({ data = [], onNavigateToTab }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <AlertTriangle size={18} style={{ color: '#d97706' }} />
             <h4 style={{ fontSize: 14, fontWeight: 700, color: '#92400e', margin: 0, textTransform: 'uppercase', letterSpacing: '0.01em' }}>
-              Dự án có giá trị tồn kho bình quân / thủ kho cao nhất — cần giám sát chặt
+              Ngăn kho có giá trị tồn kho bình quân / thủ kho cao nhất — cần giám sát chặt
             </h4>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
@@ -296,7 +313,7 @@ export default function DashboardTab({ data = [], onNavigateToTab }) {
         </div>
       )}
 
-      {/* Row 4: Bảng chi tiết Dự án ↔ Ngăn kho */}
+      {/* Row 4: Bảng chi tiết Khối thi công ↔ Ngăn kho */}
       <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <PackageSearch size={18} style={{ color: 'var(--primary)' }} />
@@ -305,7 +322,7 @@ export default function DashboardTab({ data = [], onNavigateToTab }) {
           </h4>
         </div>
 
-        {warehouseStats.projects.filter(p => p.totalThuKho > 0).length === 0 ? (
+        {warehouseStats.projects.length === 0 ? (
           <div style={{ padding: '32px 12px', textAlign: 'center', color: '#94a3b8', fontSize: 13.5, fontWeight: 600 }}>
             Chưa có dữ liệu để hiển thị.
           </div>
@@ -314,87 +331,70 @@ export default function DashboardTab({ data = [], onNavigateToTab }) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#0f58a7' }}>
-                  <th style={{ padding: '10px 14px', textAlign: 'left', color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' }}>Dự án</th>
-                  <th style={{ padding: '10px 14px', textAlign: 'left', color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' }}>Loại ngăn kho</th>
+                  <th style={{ padding: '10px 14px', textAlign: 'left', color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' }}>Khối thi công</th>
+                  <th style={{ padding: '10px 14px', textAlign: 'left', color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' }}>Ngăn kho (Dự án)</th>
                   <th style={{ padding: '10px 14px', textAlign: 'center', color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' }}>Thủ kho phụ trách</th>
-                  <th style={{ padding: '10px 14px', textAlign: 'center', color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' }}>Số ngăn kho</th>
                   <th style={{ padding: '10px 14px', textAlign: 'right', color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' }}>Giá trị tồn kho</th>
                 </tr>
               </thead>
               <tbody>
-                {warehouseStats.projects.filter(p => p.totalThuKho > 0).map((p, pIdx) => {
-                  const typeRows = Object.entries(p.byType).sort((a, b) => b[1].nganKho - a[1].nganKho)
-                  const rowCount = typeRows.length + (p.unassigned > 0 ? 1 : 0) || 1
-                  const zebraBg = pIdx % 2 === 0 ? '#ffffff' : '#f8fafc'
-                  let firstRow = true
+                {(() => {
+                  const byBlock = {}
+                  warehouseStats.projects.forEach(p => {
+                    if (!byBlock[p.block]) byBlock[p.block] = []
+                    byBlock[p.block].push(p)
+                  })
+                  const blockNames = Object.keys(byBlock).sort((a, b) => {
+                    if (a === 'Chưa phân bổ') return 1
+                    if (b === 'Chưa phân bổ') return -1
+                    return a.localeCompare(b)
+                  })
 
                   const rows = []
-                  if (typeRows.length === 0 && p.unassigned === 0) {
-                    rows.push(
-                      <tr key={`${p.project}-empty`} style={{ background: zebraBg }}>
-                        <td rowSpan={1} style={{ padding: '10px 14px', fontWeight: 700, color: '#1e293b', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }} onClick={() => onNavigateToTab('duan', p.project)}>{p.project}</td>
-                        <td colSpan={4} style={{ padding: '10px 14px', color: '#94a3b8', borderBottom: '1px solid #f1f5f9' }}>Chưa có dữ liệu ngăn kho</td>
-                      </tr>
-                    )
-                  } else {
-                    typeRows.forEach(([type, info]) => {
+                  let zebraIdx = 0
+                  blockNames.forEach(blockName => {
+                    const projs = byBlock[blockName].sort((a, b) => b.totalThuKho - a.totalThuKho)
+                    let firstRow = true
+                    projs.forEach(p => {
+                      const zebraBg = zebraIdx % 2 === 0 ? '#ffffff' : '#f8fafc'
+                      zebraIdx++
                       rows.push(
-                        <tr key={`${p.project}-${type}`} style={{ background: zebraBg }}>
+                        <tr key={p.project} style={{ background: zebraBg }}>
                           {firstRow && (
                             <td
-                              rowSpan={rowCount}
-                              onClick={() => onNavigateToTab('duan', p.project)}
-                              style={{ padding: '10px 14px', fontWeight: 700, color: '#0f58a7', borderBottom: '1px solid #f1f5f9', verticalAlign: 'top', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                              rowSpan={projs.length}
+                              style={{ padding: '10px 14px', fontWeight: 700, color: '#1e293b', borderBottom: '1px solid #f1f5f9', verticalAlign: 'top', whiteSpace: 'nowrap' }}
                             >
-                              {p.project}
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: warehouseStats.blockColorMap[blockName] || UNASSIGNED_COLOR, flexShrink: 0 }} />
+                                {blockName}
+                              </span>
                             </td>
                           )}
-                          <td style={{ padding: '10px 14px', borderBottom: '1px solid #f1f5f9' }}>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ width: 8, height: 8, borderRadius: '50%', background: warehouseStats.typeColorMap[type] || KHO_COLOR_KHAC, flexShrink: 0 }} />
-                              {type}
-                            </span>
+                          <td
+                            onClick={() => onNavigateToTab('duan', p.project)}
+                            style={{ padding: '10px 14px', borderBottom: '1px solid #f1f5f9', color: '#0f58a7', fontWeight: 700, cursor: 'pointer' }}
+                          >
+                            {p.project}
                           </td>
-                          <td style={{ padding: '10px 14px', textAlign: 'center', borderBottom: '1px solid #f1f5f9' }}>{info.count}</td>
-                          <td style={{ padding: '10px 14px', textAlign: 'center', borderBottom: '1px solid #f1f5f9', fontWeight: 700 }}>{info.nganKho}</td>
-                          <td style={{ padding: '10px 14px', textAlign: 'right', borderBottom: '1px solid #f1f5f9' }}>{formatVND(Math.round(info.value * 10) / 10)}</td>
+                          <td style={{ padding: '10px 14px', textAlign: 'center', borderBottom: '1px solid #f1f5f9', fontWeight: p.totalThuKho > 0 ? 700 : 400, color: p.totalThuKho > 0 ? '#1e293b' : '#94a3b8' }}>
+                            {p.totalThuKho > 0 ? p.totalThuKho : 'Chưa có thủ kho'}
+                          </td>
+                          <td style={{ padding: '10px 14px', textAlign: 'right', borderBottom: '1px solid #f1f5f9' }}>
+                            {p.totalValue > 0 ? formatVND(Math.round(p.totalValue * 10) / 10) : '—'}
+                          </td>
                         </tr>
                       )
                       firstRow = false
                     })
-                    if (p.unassigned > 0) {
-                      rows.push(
-                        <tr key={`${p.project}-unassigned`} style={{ background: zebraBg }}>
-                          {firstRow && (
-                            <td
-                              rowSpan={rowCount}
-                              onClick={() => onNavigateToTab('duan', p.project)}
-                              style={{ padding: '10px 14px', fontWeight: 700, color: '#0f58a7', borderBottom: '1px solid #f1f5f9', verticalAlign: 'top', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                            >
-                              {p.project}
-                            </td>
-                          )}
-                          <td style={{ padding: '10px 14px', borderBottom: '1px solid #f1f5f9', color: '#94a3b8', fontStyle: 'italic' }}>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ width: 8, height: 8, borderRadius: '50%', background: KHO_COLOR_UNASSIGNED, flexShrink: 0 }} />
-                              Chưa gán loại ngăn kho
-                            </span>
-                          </td>
-                          <td style={{ padding: '10px 14px', textAlign: 'center', borderBottom: '1px solid #f1f5f9' }}>{p.unassigned}</td>
-                          <td style={{ padding: '10px 14px', textAlign: 'center', borderBottom: '1px solid #f1f5f9' }}>—</td>
-                          <td style={{ padding: '10px 14px', textAlign: 'right', borderBottom: '1px solid #f1f5f9' }}>—</td>
-                        </tr>
-                      )
-                    }
-                  }
+                  })
                   return rows
-                })}
+                })()}
               </tbody>
               <tfoot>
                 <tr style={{ background: '#eff6ff' }}>
                   <td colSpan={2} style={{ padding: '12px 14px', fontWeight: 800, color: '#1e3a8a' }}>TỔNG CỘNG</td>
                   <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 800, color: '#1e3a8a' }}>{activeData.length}</td>
-                  <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 800, color: '#1e3a8a' }}>{warehouseStats.totalNganKho}</td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 800, color: '#1e3a8a' }}>{formatVND(Math.round(warehouseStats.totalValue * 10) / 10)}</td>
                 </tr>
               </tfoot>
