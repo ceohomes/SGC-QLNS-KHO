@@ -705,6 +705,16 @@ export default function TuyenDungTab({
             console.warn('Lỗi xóa ứng viên trên Supabase:', dbErr)
           }
         }
+        // Nếu ứng viên đã được cấp Mã NV (đã có hồ sơ chính thức bên sheet Phân bổ dự án),
+        // xóa liên thông luôn hồ sơ đó khỏi bảng danh_sach_thu_kho để đồng bộ 2 sheet.
+        if (candidate.maNV) {
+          try {
+            await supabase.from('danh_sach_thu_kho').delete().eq('ma_nv', candidate.maNV)
+          } catch (dbErr) {
+            console.warn('Lỗi xóa hồ sơ nhân sự liên thông trên Supabase:', dbErr)
+          }
+          if (onReload) await onReload()
+        }
       },
       onCancel: () => setAlertConfig(null)
     })

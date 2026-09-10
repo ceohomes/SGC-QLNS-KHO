@@ -53,6 +53,25 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
         .eq('ma_nv', maNV)
       if (error) throw error
 
+      // Xóa liên thông hồ sơ ứng viên tương ứng bên sheet Tuyển dụng để đồng bộ 2 sheet
+      try {
+        await supabase.from('sgc_tuyen_dung_ung_vien').delete().eq('ma_nv', maNV)
+      } catch (dbErr) {
+        console.warn('Lỗi xóa ứng viên liên thông trên Supabase:', dbErr)
+      }
+      try {
+        const raw = localStorage.getItem('sgc_tuyen_dung_candidates')
+        if (raw) {
+          const list = JSON.parse(raw)
+          if (Array.isArray(list)) {
+            const next = list.filter(c => String(c.maNV || '').trim().toLowerCase() !== String(maNV).trim().toLowerCase())
+            localStorage.setItem('sgc_tuyen_dung_candidates', JSON.stringify(next))
+          }
+        }
+      } catch (e) {
+        console.warn('Lỗi cập nhật localStorage ứng viên sau khi xóa:', e)
+      }
+
       if (onUpdateData) {
         onUpdateData(prev => prev.filter(tk => tk.maNV !== maNV))
       }
