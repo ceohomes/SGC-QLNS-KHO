@@ -268,6 +268,7 @@ export default function App() {
                   onNavigateToStorekeeper={handleNavigateToStorekeeper}
                   dbStatus={dbStatus}
                   onCandidatesCountChange={setRecruitmentCount}
+                  onReload={loadData}
                 />
               )}
               {tab === 'danhsach' && (

@@ -235,8 +235,8 @@ function EditThuKhoPopupModal({ data, formData, onClose, onSave, availableBlocks
               </div>
             </div>
 
-            {/* Hàng 3: Chức vụ & Trạng thái làm việc */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
+            {/* Hàng 3: Chức vụ */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 5, color: '#1e293b' }}>
                   Chức vụ
@@ -248,22 +248,6 @@ function EditThuKhoPopupModal({ data, formData, onClose, onSave, availableBlocks
                   onChange={e => setModalForm({ ...modalForm, chucVu: e.target.value })}
                 >
                   {CHUC_VU_LIST.map(val => (
-                    <option key={val} value={val}>{val}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 5, color: '#1e293b' }}>
-                  Trạng thái làm việc
-                </label>
-                <select
-                  className="input"
-                  style={{ width: '100%', height: 40, borderRadius: 8, fontSize: 14 }}
-                  value={modalForm.trangThai || 'Đang làm việc'}
-                  onChange={e => setModalForm({ ...modalForm, trangThai: e.target.value })}
-                >
-                  {TRANG_THAI_LIST.map(val => (
                     <option key={val} value={val}>{val}</option>
                   ))}
                 </select>
@@ -301,35 +285,6 @@ function EditThuKhoPopupModal({ data, formData, onClose, onSave, availableBlocks
                   value={modalForm.soNamKinhNghiem ?? ''}
                   onChange={e => setModalForm({ ...modalForm, soNamKinhNghiem: e.target.value === '' ? null : Number(e.target.value) })}
                   placeholder="VD: 3"
-                />
-              </div>
-            </div>
-
-            {/* Hàng 5: CCCD & Quê quán */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 5, color: '#1e293b' }}>
-                  Số CCCD
-                </label>
-                <input
-                  className="input"
-                  style={{ width: '100%', height: 40, borderRadius: 8, fontSize: 14 }}
-                  value={modalForm.cccd || ''}
-                  onChange={e => setModalForm({ ...modalForm, cccd: e.target.value })}
-                  placeholder="Số căn cước công dân"
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 5, color: '#1e293b' }}>
-                  Quê quán / Địa chỉ
-                </label>
-                <input
-                  className="input"
-                  style={{ width: '100%', height: 40, borderRadius: 8, fontSize: 14 }}
-                  value={modalForm.queQuan || modalForm.diaChi || ''}
-                  onChange={e => setModalForm({ ...modalForm, queQuan: e.target.value, diaChi: e.target.value })}
-                  placeholder="Tỉnh/Thành phố hoặc địa chỉ cư trú"
                 />
               </div>
             </div>

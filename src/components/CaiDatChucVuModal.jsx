@@ -22,7 +22,7 @@ export const DEFAULT_CHUC_VU_LIST = [
 
 export const isSafeDbId = (id) => typeof id === 'number' && Number.isInteger(id) && id > 0 && id < 2000000000
 
-export default function CaiDatChucVuModal({ isOpen, onClose, onPositionsUpdated, candidateCountByPosition = {} }) {
+export default function CaiDatChucVuModal({ isOpen, onClose, onPositionsUpdated, candidateCountByPosition = {}, onChucVuRenamed, onReload }) {
   const [positions, setPositions] = useState([])
   const [loading, setLoading] = useState(false)
 
@@ -154,7 +154,38 @@ export default function CaiDatChucVuModal({ isOpen, onClose, onPositionsUpdated,
         console.warn('Lỗi cập nhật Supabase:', err)
       }
 
-      setActionSuccess(`Đã cập nhật chức vụ thành "${ten}"!`)
+      // Đổi tên chức vụ trên toàn bộ dữ liệu đã tồn tại đang mang tên cũ,
+      // để danh sách thủ kho và ứng viên tuyển dụng luôn đồng bộ theo tên mới.
+      if (oldTen && oldTen !== ten) {
+        try {
+          await supabase
+            .from('danh_sach_thu_kho')
+            .update({ chuc_vu: ten, chuc_danh: ten })
+            .or(`chuc_vu.eq.${oldTen},chuc_danh.eq.${oldTen}`)
+        } catch (err) {
+          console.warn('Lỗi đồng bộ đổi tên chức vụ trên danh_sach_thu_kho:', err)
+        }
+
+        try {
+          await supabase
+            .from('sgc_tuyen_dung_ung_vien')
+            .update({ chuc_vu: ten })
+            .eq('chuc_vu', oldTen)
+        } catch (err) {
+          console.warn('Lỗi đồng bộ đổi tên chức vụ trên sgc_tuyen_dung_ung_vien:', err)
+        }
+
+        if (onChucVuRenamed) onChucVuRenamed(oldTen, ten)
+        if (onReload) {
+          try {
+            await onReload()
+          } catch (err) {
+            console.warn('Lỗi tải lại dữ liệu thủ kho sau khi đổi tên chức vụ:', err)
+          }
+        }
+      }
+
+      setActionSuccess(`Đã cập nhật chức vụ thành "${ten}" và đồng bộ cho toàn bộ dữ liệu liên quan!`)
     } else {
       // THÊM MỚI
       const newItem = {

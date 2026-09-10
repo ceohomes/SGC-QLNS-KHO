@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Trash2, Pencil, Check, X, GripVertical, Building, FolderPlus, Database, Copy, RefreshCw, ChevronDown, ChevronUp, AlertCircle, Terminal, Search } from 'lucide-react'
+import { Plus, Trash2, Pencil, Check, X, GripVertical, Building, FolderPlus, Database, Copy, RefreshCw, ChevronDown, ChevronUp, AlertCircle, Terminal, Search, Upload, AlertTriangle } from 'lucide-react'
 import CustomAlert from './CustomAlert'
 import { supabase } from '../supabaseClient'
 
@@ -274,6 +274,11 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
   const [editingProject, setEditingProject] = useState(null) // { blockId, projectIndex, project }
   const [projectName, setProjectName] = useState('')
   const [targetBlockId, setTargetBlockId] = useState('')
+
+  // Bulk import ("Up nhiều ngăn kho") states
+  const [isBulkImportModalOpen, setIsBulkImportModalOpen] = useState(false)
+  const [bulkImportBlockId, setBulkImportBlockId] = useState('')
+  const [bulkImportText, setBulkImportText] = useState('')
 
   // Load from Supabase on mount with LocalStorage fallback
   const loadFromSupabase = async () => {
@@ -875,6 +880,72 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
     )
   }
 
+  // Open Bulk Import Modal ("Up nhiều ngăn kho")
+  const openBulkImportModal = () => {
+    setBulkImportBlockId(selectedBlockId || (blocks[0] && blocks[0].id) || '')
+    setBulkImportText('')
+    setIsBulkImportModalOpen(true)
+  }
+
+  // Confirm Bulk Import: chỉ thêm các dòng chưa từng tồn tại (không trùng lặp)
+  const handleBulkImportConfirm = () => {
+    const targetBlock = blocks.find(b => b.id === bulkImportBlockId)
+    if (!targetBlock) {
+      showAlert('Vui lòng chọn dự án để thêm ngăn kho vào.', 'warning', 'THIẾU THÔNG TIN')
+      return
+    }
+
+    const rawLines = bulkImportText.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+    if (rawLines.length === 0) {
+      showAlert('Vui lòng dán danh sách tên ngăn kho cần thêm (mỗi dòng một tên).', 'warning', 'CHƯA CÓ DỮ LIỆU')
+      return
+    }
+
+    const existingNamesLower = new Set((targetBlock.projects || []).map(p => (p.name || '').trim().toLowerCase()))
+    const seenInBatch = new Set()
+    const toAdd = []
+    let duplicateCount = 0
+
+    rawLines.forEach(name => {
+      const lower = name.toLowerCase()
+      if (existingNamesLower.has(lower) || seenInBatch.has(lower)) {
+        duplicateCount++
+        return
+      }
+      seenInBatch.add(lower)
+      toAdd.push(name)
+    })
+
+    if (toAdd.length === 0) {
+      showAlert(`Không có ngăn kho mới nào được thêm. Toàn bộ ${duplicateCount} dòng đã trùng lặp với dữ liệu hiện có trong "${targetBlock.name}".`, 'warning', 'TOÀN BỘ ĐÃ TRÙNG LẶP')
+      return
+    }
+
+    const newProjects = toAdd.map((name, idx) => ({
+      id: `p_bulk_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 5)}`,
+      name,
+      badge: targetBlock.badge || 'NK'
+    }))
+
+    const updatedBlocks = blocks.map(b => {
+      if (b.id === targetBlock.id) {
+        return { ...b, projects: [...(b.projects || []), ...newProjects] }
+      }
+      return b
+    })
+
+    setBlocks(updatedBlocks)
+    syncStateToSupabase(updatedBlocks)
+    setIsBulkImportModalOpen(false)
+    setBulkImportText('')
+
+    const msg = duplicateCount > 0
+      ? `Đã thêm ${toAdd.length} ngăn kho mới vào "${targetBlock.name}". Đã tự động bỏ qua ${duplicateCount} dòng trùng lặp. Nhớ bấm "Lưu cấu hình" để đồng bộ lên Supabase!`
+      : `Đã thêm ${toAdd.length} ngăn kho mới vào "${targetBlock.name}". Nhớ bấm "Lưu cấu hình" để đồng bộ lên Supabase!`
+    setSuccessToast(`Đã thêm ${toAdd.length} ngăn kho mới!`)
+    showAlert(msg, 'success', 'ĐÃ THÊM NGĂN KHO')
+  }
+
 
   // --- HTML5 DRAG & DROP HANDLERS ---
 
@@ -1027,6 +1098,22 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
               </button>
             )}
           </div>
+
+          {/* Nút Tạo công cụ Up nhiều ngăn kho */}
+          <button
+            onClick={openBulkImportModal}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+              background: '#0f58a7', color: '#ffffff', border: 'none', cursor: 'pointer',
+              boxShadow: '0 4px 6px -1px rgba(15,88,167,0.2)', whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.background = '#0050b3'}
+            onMouseOut={(e) => e.currentTarget.style.background = '#0f58a7'}
+          >
+            <Upload size={15} />
+            <span>Up nhiều ngăn kho</span>
+          </button>
 
           {/* Supabase Connection State */}
           {useSupabase ? (
@@ -1619,6 +1706,168 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
           </div>
         </div>
       )}
+
+      {/* --- MODAL 3: BULK IMPORT NGĂN KHO ("Up nhiều ngăn kho") --- */}
+      {isBulkImportModalOpen && (() => {
+        const previewTargetBlock = blocks.find(b => b.id === bulkImportBlockId)
+        const previewExistingLower = new Set((previewTargetBlock?.projects || []).map(p => (p.name || '').trim().toLowerCase()))
+        const previewSeen = new Set()
+        const previewRows = bulkImportText.split(/\r?\n/).map(l => l.trim()).filter(Boolean).map((name, idx) => {
+          const lower = name.toLowerCase()
+          let status = 'new'
+          if (previewExistingLower.has(lower)) {
+            status = 'existing'
+          } else if (previewSeen.has(lower)) {
+            status = 'batchDup'
+          } else {
+            previewSeen.add(lower)
+          }
+          return { key: `${idx}_${name}`, name, status }
+        })
+        const newCount = previewRows.filter(r => r.status === 'new').length
+        const dupCount = previewRows.length - newCount
+
+        return (
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', zIndex: 1000,
+            backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 16
+          }}>
+            <div style={{
+              background: '#ffffff', borderRadius: 12, width: '100%', maxWidth: 620,
+              maxHeight: '88vh', display: 'flex', flexDirection: 'column',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+              overflow: 'hidden', textAlign: 'left'
+            }}>
+              <div style={{
+                background: '#0f58a7', padding: '16px 20px', color: '#ffffff',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0
+              }}>
+                <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>
+                  TẠO CÔNG CỤ UP NHIỀU NGĂN KHO
+                </h4>
+                <button
+                  onClick={() => setIsBulkImportModalOpen(false)}
+                  style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer', padding: 4 }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 6 }}>
+                    Thêm ngăn kho vào dự án *
+                  </label>
+                  <select
+                    className="input"
+                    value={bulkImportBlockId}
+                    onChange={(e) => setBulkImportBlockId(e.target.value)}
+                    style={{ width: '100%', height: 40, borderRadius: 8, fontSize: 13.5, border: '1px solid #cbd5e1', padding: '0 10px' }}
+                  >
+                    {blocks.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 6 }}>
+                    Dán danh sách tên ngăn kho (mỗi dòng 1 tên) *
+                  </label>
+                  <textarea
+                    value={bulkImportText}
+                    onChange={(e) => setBulkImportText(e.target.value)}
+                    placeholder={'Dán trực tiếp cột dữ liệu từ Excel vào đây (VD: từ ô B2 đến B1000 sheet Danh_Sach_BCH_Chuan_Hoa)...\n\nBCH Cọc Khoan Nhồi - Trống Đồng\nBCH Cọc Khoan Nhồi DA Hạ Long Xanh\n...'}
+                    rows={8}
+                    style={{
+                      width: '100%', padding: '10px 12px', fontSize: 13, borderRadius: 8,
+                      border: '1px solid #cbd5e1', outline: 'none', boxSizing: 'border-box',
+                      fontFamily: 'monospace', resize: 'vertical', lineHeight: 1.5
+                    }}
+                  />
+                  <span style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 4, display: 'block' }}>
+                    💡 Mẹo: bôi đen cột trong Excel, Ctrl+C rồi dán (Ctrl+V) thẳng vào ô này — mỗi ô sẽ tự tách thành 1 dòng.
+                  </span>
+                </div>
+
+                {previewRows.length > 0 && (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                        Xem trước ({previewRows.length} dòng)
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 700 }}>
+                        <span style={{ color: '#16a34a' }}>{newCount} mới</span>
+                        {dupCount > 0 && <span style={{ color: '#dc2626' }}> · {dupCount} trùng lặp (sẽ bỏ qua)</span>}
+                      </span>
+                    </div>
+                    <div style={{
+                      maxHeight: 220, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8,
+                      display: 'flex', flexDirection: 'column'
+                    }}>
+                      {previewRows.map(row => (
+                        <div key={row.key} style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                          padding: '7px 12px', fontSize: 12.5,
+                          borderBottom: '1px solid #f1f5f9',
+                          background: row.status === 'new' ? '#ffffff' : '#fef2f2'
+                        }}>
+                          <span style={{
+                            color: row.status === 'new' ? '#334155' : '#991b1b',
+                            fontWeight: row.status === 'new' ? 500 : 600,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                          }}>
+                            {row.name}
+                          </span>
+                          {row.status === 'new' ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#16a34a', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                              <Check size={12} /> Mới
+                            </span>
+                          ) : (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#dc2626', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                              <AlertTriangle size={12} />
+                              {row.status === 'existing' ? 'Đã tồn tại' : 'Trùng trong danh sách'}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 20px', borderTop: '1px solid #e2e8f0', flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsBulkImportModalOpen(false)}
+                  style={{
+                    background: 'none', border: '1px solid #cbd5e1', color: '#475569',
+                    padding: '8px 16px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer'
+                  }}
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBulkImportConfirm}
+                  disabled={newCount === 0}
+                  style={{
+                    background: newCount === 0 ? '#cbd5e1' : '#0f58a7',
+                    color: newCount === 0 ? '#94a3b8' : '#ffffff',
+                    border: 'none', padding: '8px 16px', borderRadius: 6, fontSize: 13, fontWeight: 700,
+                    cursor: newCount === 0 ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 6
+                  }}
+                >
+                  <Upload size={14} />
+                  <span>Thêm {newCount > 0 ? newCount : ''} ngăn kho mới</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {alertConfig && (
         <CustomAlert

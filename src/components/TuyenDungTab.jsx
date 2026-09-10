@@ -277,7 +277,8 @@ export default function TuyenDungTab({
   onRecruitSuccess,
   onNavigateToStorekeeper,
   dbStatus,
-  onCandidatesCountChange
+  onCandidatesCountChange,
+  onReload
 }) {
   const [candidates, setCandidates] = useState(() => {
     try {
@@ -473,6 +474,25 @@ export default function TuyenDungTab({
     })
     return map
   }, [candidates])
+
+  // Khi một Chức vụ được đổi tên trong "Cài đặt Chức vụ", cập nhật ngay các ứng viên
+  // đang mang chức vụ cũ sang tên mới để đồng bộ hiển thị (không chờ tải lại trang).
+  const handleChucVuRenamed = (oldTen, newTen) => {
+    if (!oldTen || !newTen || oldTen === newTen) return
+    setCandidates(prev => {
+      const updated = prev.map(c => c.chucVu === oldTen ? { ...c, chucVu: newTen } : c)
+      try {
+        const lightweight = updated.map(c => {
+          const { fileDataUrl, ...rest } = c
+          return rest
+        })
+        localStorage.setItem('sgc_tuyen_dung_candidates', JSON.stringify(lightweight))
+      } catch (e) {
+        console.warn('Lỗi lưu localStorage sau khi đổi tên chức vụ:', e)
+      }
+      return updated
+    })
+  }
 
   // Inline Quick Employee ID inputs state { [candidateId]: string }
   const [inlineMaNVInputs, setInlineMaNVInputs] = useState({})
@@ -1470,6 +1490,8 @@ export default function TuyenDungTab({
         onClose={() => setShowChucVuModal(false)}
         onPositionsUpdated={(updated) => setCustomPositions(updated)}
         candidateCountByPosition={candidateCountByPosition}
+        onChucVuRenamed={handleChucVuRenamed}
+        onReload={onReload}
       />
 
       {/* Modal Cài đặt API Key */}
