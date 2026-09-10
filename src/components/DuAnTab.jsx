@@ -19,6 +19,7 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
   const [searchStorekeeper, setSearchStorekeeper] = useState('')
   const [searchProject, setSearchProject] = useState('')
   const [chucVuFilter, setChucVuFilter] = useState(null) // Bộ lọc theo chức danh khi bấm vào thẻ "Theo chức danh"
+  const [showAllStorekeepers, setShowAllStorekeepers] = useState(false) // Bấm vào "Tổng số thủ kho" để xem/xuất toàn bộ danh sách
   const [successToast, setSuccessToast] = useState(null)
   const [saving, setSaving] = useState(false)
   const [blocks, setBlocks] = useState([])
@@ -115,6 +116,7 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
         chung_chi_atld: updatedRow.chungChiATLD,
         danh_gia_hieu_suat: updatedRow.danhGiaHieuSuat,
         danh_gia: updatedRow.danhGiaHieuSuat,
+        ai_danh_gia: updatedRow.aiDanhGia,
         so_dien_thoai_khan_cap: updatedRow.soDienThoaiKhanCap,
         ghi_chu: updatedRow.ghiChu
       }
@@ -549,8 +551,11 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
     const sq = searchStorekeeper.trim()
     let list = []
 
-    // If global search is active, show matching storekeepers
-    if (sq) {
+    // Xem toàn bộ danh sách thủ kho trên toàn hệ thống (bấm vào ô "Tổng số thủ kho")
+    if (showAllStorekeepers && !sq) {
+      list = [...data]
+    } else if (sq) {
+      // If global search is active, show matching storekeepers
       list = [...filteredStorekeepers]
     } else {
       const activeProj = projectStats.find(p => p.id === selectedProjectId)
@@ -593,7 +598,7 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
 
       return (a.hoTen || '').localeCompare(b.hoTen || '', 'vi')
     })
-  }, [selectedProjectId, data, allProjects, projectStats, searchStorekeeper, filteredStorekeepers])
+  }, [selectedProjectId, data, allProjects, projectStats, searchStorekeeper, filteredStorekeepers, showAllStorekeepers])
 
   // Danh sách thủ kho hiển thị cuối cùng: áp dụng thêm bộ lọc theo chức danh (khi bấm vào 1 thẻ "Theo chức danh")
   const activeProjectStorekeepers = useMemo(() => {
@@ -1144,14 +1149,22 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
                 />
               </div>
 
-              {/* Tổng số thủ kho trên toàn hệ thống */}
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '8px 12px', background: '#eff6ff', border: '1px solid #bfdbfe',
-                borderRadius: 8, fontSize: 12.5
-              }}>
-                <span style={{ fontWeight: 700, color: '#1e40af' }}>Tổng số thủ kho</span>
-                <span style={{ fontWeight: 800, color: '#1e40af' }}>{data.length} người</span>
+              {/* Tổng số thủ kho trên toàn hệ thống - bấm vào để xem/xuất toàn bộ danh sách */}
+              <div
+                onClick={() => setShowAllStorekeepers(prev => !prev)}
+                title={showAllStorekeepers ? 'Bấm lại để bỏ chọn toàn bộ' : 'Bấm để xem và xuất toàn bộ danh sách thủ kho'}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '8px 12px',
+                  background: showAllStorekeepers ? '#1e40af' : '#eff6ff',
+                  border: `1.5px solid ${showAllStorekeepers ? '#1e40af' : '#bfdbfe'}`,
+                  borderRadius: 8, fontSize: 12.5, cursor: 'pointer', userSelect: 'none',
+                  transition: 'all 0.12s ease',
+                  boxShadow: showAllStorekeepers ? '0 2px 5px rgba(30,64,175,0.25)' : 'none'
+                }}
+              >
+                <span style={{ fontWeight: 700, color: showAllStorekeepers ? '#ffffff' : '#1e40af' }}>Tổng số thủ kho</span>
+                <span style={{ fontWeight: 800, color: showAllStorekeepers ? '#ffffff' : '#1e40af' }}>{data.length} người</span>
               </div>
 
               <div style={{ position: 'relative' }}>
@@ -1255,7 +1268,7 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
                           return (
                             <div
                               key={p.id}
-                              onClick={() => setSelectedProjectId(p.id)}
+                              onClick={() => { setSelectedProjectId(p.id); setShowAllStorekeepers(false) }}
                               onDragOver={(e) => {
                                 e.preventDefault()
                                 if (dragOverProjectId !== p.id) setDragOverProjectId(p.id)

@@ -3468,9 +3468,9 @@ function EditCandidateModal({ candidate, onClose, onSave, positionsList = [], pr
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto', fontFamily: "'Roboto', sans-serif" }}>
-          <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, fontFamily: "'Roboto', sans-serif" }}>
+          <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, flex: 1, overflowY: 'auto', minHeight: 0 }}>
+
             {/* Hàng 1: Họ và tên & Số điện thoại */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
               <div>
@@ -3651,7 +3651,7 @@ function EditCandidateModal({ candidate, onClose, onSave, positionsList = [], pr
           <div style={{
             padding: '16px 24px', background: '#f8fafc', borderTop: '1px solid #e2e8f0',
             display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12,
-            fontFamily: "'Roboto', sans-serif"
+            fontFamily: "'Roboto', sans-serif", flexShrink: 0
           }}>
             <button
               type="button"
