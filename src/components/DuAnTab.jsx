@@ -1202,6 +1202,16 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
                   style={{ width: '100%', paddingLeft: 34, fontSize: 13, height: 38 }}
                 />
               </div>
+
+              {/* Tổng số thủ kho trên toàn hệ thống */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 12px', background: '#eff6ff', border: '1px solid #bfdbfe',
+                borderRadius: 8, fontSize: 12.5
+              }}>
+                <span style={{ fontWeight: 700, color: '#1e40af' }}>Tổng số thủ kho</span>
+                <span style={{ fontWeight: 800, color: '#1e40af' }}>{data.length} người</span>
+              </div>
             </div>
 
             {/* Grouped Projects scroll list */}

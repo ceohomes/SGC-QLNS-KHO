@@ -969,88 +969,63 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
         </div>
       )}
 
-      {/* Header Board Controls */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
-          <div style={{ textAlign: 'left' }}>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Building size={20} style={{ color: '#0f58a7' }} />
-              <span>THIẾT LẬP KHỐI THI CÔNG & DỰ ÁN</span>
-            </h2>
-            <p style={{ margin: '4px 0 0 0', fontSize: 13, color: '#64748b' }}>
-              Kéo thả tiêu đề cột để thay đổi thứ tự khối. Kéo thả thẻ dự án để di chuyển giữa các khối.
-            </p>
+      {/* Header dạng thẻ (card) đồng bộ phong cách với sheet Danh sách theo dự án */}
+      <div className="card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', flex: '1 1 auto' }}>
+          <div style={{ background: 'linear-gradient(135deg, #0f58a7 0%, #1e40af 100%)', padding: '10px', borderRadius: '12px', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Building size={22} />
           </div>
+          <div>
+            <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+              THIẾT LẬP KHỐI THI CÔNG & DỰ ÁN
+            </h4>
+            <span style={{ fontSize: 13, color: 'var(--text-light)', display: 'flex', alignItems: 'center', gap: 5 }}>
+              💡 Kéo thả tiêu đề để thay đổi thứ tự khối. Kéo thả thẻ dự án để di chuyển giữa các khối.
+            </span>
+          </div>
+        </div>
 
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           {/* Search Box */}
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '280px', minWidth: '200px' }}>
-            <Search size={16} style={{ position: 'absolute', left: 12, color: '#64748b', pointerEvents: 'none' }} />
+          <div style={{ position: 'relative', width: '260px' }}>
+            <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
             <input
               type="text"
+              className="input"
               placeholder="Tìm tên dự án..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 12px 8px 36px',
-                fontSize: 13,
-                fontWeight: 600,
-                color: '#1e293b',
-                background: '#ffffff',
-                border: '1.5px solid #cbd5e1',
-                borderRadius: '8px',
-                outline: 'none',
-                transition: 'all 0.15s ease',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = '#0f58a7'
-                e.target.style.boxShadow = '0 0 0 3px rgba(15, 88, 167, 0.15)'
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = '#cbd5e1'
-                e.target.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'
-              }}
+              style={{ width: '100%', paddingLeft: 36, paddingRight: searchQuery ? 32 : 12, fontSize: 13, height: 40, borderRadius: '10px', border: '1.5px solid #cbd5e1' }}
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
                 style={{
-                  position: 'absolute',
-                  right: 10,
-                  background: 'none',
-                  border: 'none',
-                  padding: 4,
-                  cursor: 'pointer',
-                  color: '#64748b',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
+                  position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: '#64748b',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}
               >
                 <X size={14} />
               </button>
             )}
           </div>
-        </div>
 
-        {/* Supabase Connection State and Config Trigger */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Supabase Connection State */}
           {useSupabase ? (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0',
-              padding: '6px 12px', borderRadius: 8, fontSize: 12.5, fontWeight: 700
+              background: '#ecfdf5', color: '#047857', border: '1.5px solid #a7f3d0',
+              padding: '8px 14px', borderRadius: 10, fontSize: 12.5, fontWeight: 700
             }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', display: 'inline-block', boxShadow: '0 0 6px #10b981' }} />
-              <Database size={14} />
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
               <span>Supabase: Đã kết nối</span>
             </div>
           ) : (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa',
-              padding: '6px 12px', borderRadius: 8, fontSize: 12.5, fontWeight: 700
+              background: '#fff7ed', color: '#c2410c', border: '1.5px solid #fed7aa',
+              padding: '8px 14px', borderRadius: 10, fontSize: 12.5, fontWeight: 700
             }}>
               <AlertCircle size={14} style={{ color: '#ea580c' }} />
               <span>Lưu cục bộ (Trình duyệt)</span>
@@ -1142,6 +1117,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
               style={{
                 borderLeft: `5px solid ${colors.color}`,
                 overflow: 'hidden',
+                flexShrink: 0,
                 transition: 'all 0.2s ease',
                 outline: isOver ? `2.5px solid ${colors.color}` : 'none',
                 transform: draggedBlockIndex === idx ? 'scale(0.995)' : 'none',
@@ -1338,7 +1314,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
         <button
           onClick={openAddBlock}
           style={{
-            width: '100%', padding: '16px', background: '#ffffff',
+            width: '100%', padding: '16px', background: '#ffffff', flexShrink: 0,
             border: '2px dashed #cbd5e1', borderRadius: 'var(--radius-lg)', cursor: 'pointer',
             display: 'flex', alignItems: 'center',
             justifyContent: 'center', gap: 8, transition: 'all 0.2s',
