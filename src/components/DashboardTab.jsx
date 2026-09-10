@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react'
-import { UserCheck, PackageSearch, AlertTriangle, Users, X, Info } from 'lucide-react'
+import { UserCheck, PackageSearch, AlertTriangle, Users, User, X, Info, ChevronRight } from 'lucide-react'
 import { formatVND } from '../constants.js'
 import { supabase } from '../supabaseClient'
 import useEscapeKey from '../hooks/useEscapeKey'
@@ -180,104 +180,110 @@ export default function DashboardTab({ data = [], onNavigateToTab }) {
             Chưa có dữ liệu để hiển thị.
           </div>
         ) : (
-          <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: '#0f58a7' }}>
-                  <th style={{ padding: '10px 14px', textAlign: 'left', color: '#fff', fontWeight: 700, whiteSpace: 'nowrap', borderRight: '1px solid rgba(255,255,255,0.2)' }}>Dự án</th>
-                  <th style={{ padding: '10px 14px', textAlign: 'left', color: '#fff', fontWeight: 700, whiteSpace: 'nowrap', borderRight: '1px solid rgba(255,255,255,0.2)' }}>Ngăn kho</th>
-                  <th style={{ padding: '10px 14px', textAlign: 'center', color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' }}>Thủ kho phụ trách</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(() => {
-                  const byBlock = {}
-                  warehouseStats.projects.forEach(p => {
-                    if (!byBlock[p.block]) byBlock[p.block] = []
-                    byBlock[p.block].push(p)
-                  })
-                  const blockNames = Object.keys(byBlock).sort((a, b) => {
-                    if (a === 'Chưa phân bổ') return 1
-                    if (b === 'Chưa phân bổ') return -1
-                    return a.localeCompare(b)
-                  })
+          <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)' }}>
+            {/* Header dạng thẻ thay vì hàng bảng cứng */}
+            <div style={{
+              display: 'grid', gridTemplateColumns: '1fr 120px',
+              padding: '12px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0'
+            }}>
+              <span style={{ fontSize: 11.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Dự án / Ngăn kho</span>
+              <span style={{ fontSize: 11.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center' }}>Thủ kho</span>
+            </div>
 
-                  const GROUP_BG = ['#ffffff', '#eff6ff']
-                  const rows = []
-                  blockNames.forEach((blockName, groupIdx) => {
-                    const projs = byBlock[blockName].sort((a, b) => b.totalThuKho - a.totalThuKho)
-                    const groupBg = GROUP_BG[groupIdx % GROUP_BG.length]
-                    let firstRow = true
-                    projs.forEach(p => {
-                      rows.push(
-                        <tr key={p.project} style={{ background: groupBg }}>
-                          {firstRow && (
-                            <td
-                              rowSpan={projs.length}
-                              style={{
-                                padding: '10px 14px', fontWeight: 700, color: '#1e293b',
-                                borderBottom: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0',
-                                borderTop: '2px solid #94a3b8',
-                                verticalAlign: 'top', whiteSpace: 'nowrap'
+            {(() => {
+              const byBlock = {}
+              warehouseStats.projects.forEach(p => {
+                if (!byBlock[p.block]) byBlock[p.block] = []
+                byBlock[p.block].push(p)
+              })
+              const blockNames = Object.keys(byBlock).sort((a, b) => {
+                if (a === 'Chưa phân bổ') return 1
+                if (b === 'Chưa phân bổ') return -1
+                return a.localeCompare(b)
+              })
+
+              return blockNames.map((blockName, groupIdx) => {
+                const projs = byBlock[blockName].sort((a, b) => b.totalThuKho - a.totalThuKho)
+                const groupColor = warehouseStats.blockColorMap[blockName] || UNASSIGNED_COLOR
+                return (
+                  <div key={blockName}>
+                    {/* Thanh tiêu đề nhóm theo Dự án (Khối thi công) */}
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '9px 20px',
+                      background: `${groupColor}14`,
+                      borderTop: groupIdx > 0 ? '1px solid #e2e8f0' : 'none',
+                      borderBottom: '1px solid #e2e8f0'
+                    }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: groupColor, flexShrink: 0 }} />
+                      <span style={{ fontSize: 12.5, fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                        {blockName}
+                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>· {projs.length} ngăn kho</span>
+                    </div>
+
+                    {/* Danh sách Ngăn kho trong nhóm */}
+                    {projs.map((p, idx) => (
+                      <div
+                        key={p.project}
+                        onClick={() => onNavigateToTab('duan', p.project)}
+                        style={{
+                          display: 'grid', gridTemplateColumns: '1fr 120px', alignItems: 'center',
+                          padding: '11px 20px 11px 34px', cursor: 'pointer',
+                          background: idx % 2 === 0 ? '#ffffff' : '#fafbfc',
+                          borderBottom: '1px solid #f1f5f9',
+                          transition: 'background 0.12s ease'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#f0f7ff'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = idx % 2 === 0 ? '#ffffff' : '#fafbfc'}
+                      >
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#0f58a7', minWidth: 0 }}>
+                          <ChevronRight size={13} style={{ color: '#cbd5e1', flexShrink: 0 }} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.project}</span>
+                        </span>
+                        <span style={{ textAlign: 'center' }}>
+                          {p.totalThuKho > 0 ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedProjectStaff(p.project)
                               }}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 5,
+                                fontWeight: 700, color: '#0f58a7', fontSize: 12,
+                                background: '#eaf2fd', border: '1px solid #bfdbfe',
+                                cursor: 'pointer', padding: '4px 12px', borderRadius: '999px',
+                                transition: 'all 0.15s ease', outline: 'none'
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = '#dbeafe'; e.currentTarget.style.borderColor = '#93c5fd' }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = '#eaf2fd'; e.currentTarget.style.borderColor = '#bfdbfe' }}
+                              title="Bấm để xem danh sách thủ kho phụ trách ngăn kho này"
                             >
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: warehouseStats.blockColorMap[blockName] || UNASSIGNED_COLOR, flexShrink: 0 }} />
-                                {blockName}
-                              </span>
-                            </td>
+                              <User size={12} />
+                              {p.totalThuKho}
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: 12, color: '#cbd5e1', fontStyle: 'italic' }}>Chưa có thủ kho</span>
                           )}
-                          <td
-                            onClick={() => onNavigateToTab('duan', p.project)}
-                            style={{
-                              padding: '10px 14px', color: '#0f58a7', fontWeight: 700, cursor: 'pointer',
-                              borderBottom: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0',
-                              borderTop: firstRow ? '2px solid #94a3b8' : undefined
-                            }}
-                          >
-                            {p.project}
-                          </td>
-                          <td style={{
-                            padding: '10px 14px', textAlign: 'center',
-                            borderBottom: '1px solid #e2e8f0',
-                            borderTop: firstRow ? '2px solid #94a3b8' : undefined
-                          }}>
-                            {p.totalThuKho > 0 ? (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setSelectedProjectStaff(p.project)
-                                }}
-                                style={{
-                                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                                  fontWeight: 700, color: '#0f58a7', fontSize: 12,
-                                  background: '#f0f7ff', border: '1px solid #bfdbfe',
-                                  cursor: 'pointer', padding: '2px 10px', borderRadius: '12px',
-                                  transition: 'all 0.15s ease', outline: 'none'
-                                }}
-                                title="Bấm để xem danh sách thủ kho phụ trách ngăn kho này"
-                              >
-                                {p.totalThuKho}
-                              </button>
-                            ) : (
-                              <span style={{ color: '#94a3b8' }}>Chưa có thủ kho</span>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                      firstRow = false
-                    })
-                  })
-                  return rows
-                })()}
-              </tbody>
-              <tfoot>
-                <tr style={{ background: '#dbeafe' }}>
-                  <td colSpan={2} style={{ padding: '12px 14px', fontWeight: 800, color: '#1e3a8a', borderTop: '2px solid #94a3b8', borderRight: '1px solid #bfdbfe' }}>TỔNG CỘNG</td>
-                  <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 800, color: '#1e3a8a', borderTop: '2px solid #94a3b8' }}>{activeData.length}</td>
-                </tr>
-              </tfoot>
-            </table>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })
+            })()}
+
+            {/* Tổng cộng */}
+            <div style={{
+              display: 'grid', gridTemplateColumns: '1fr 120px', alignItems: 'center',
+              padding: '13px 20px', background: '#eff6ff', borderTop: '2px solid #bfdbfe'
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#1e3a8a', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Tổng cộng</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 13.5, fontWeight: 800, color: '#1e3a8a' }}>
+                <User size={13} />
+                {activeData.length}
+              </span>
+            </div>
           </div>
         )}
       </div>
