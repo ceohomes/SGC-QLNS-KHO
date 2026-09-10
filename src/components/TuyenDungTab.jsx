@@ -2870,32 +2870,6 @@ function CandidateDetailModal({
                   <span>ĐÁNH GIÁ ĐỘ PHÙ HỢP TỪ GEMINI AI</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  {onEdit && (
-                    <button
-                      type="button"
-                      onClick={() => onEdit(candidate)}
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 5,
-                        background: '#ffffff', color: '#6d28d9',
-                        border: '1px solid #c4b5fd', borderRadius: 8, padding: '5px 12px',
-                        fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                        boxShadow: '0 1px 2px rgba(109, 40, 217, 0.08)',
-                        transition: 'all 0.15s ease'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#f5f3ff'
-                        e.currentTarget.style.borderColor = '#8b5cf6'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = '#ffffff'
-                        e.currentTarget.style.borderColor = '#c4b5fd'
-                      }}
-                      title="Chỉnh sửa toàn bộ thông tin ứng viên"
-                    >
-                      <Edit3 size={13} color="#7c3aed" />
-                      <span>Chỉnh sửa toàn bộ</span>
-                    </button>
-                  )}
                   <button
                     type="button"
                     disabled={isRescanning}
@@ -3144,6 +3118,32 @@ function CandidateDetailModal({
                     </span>
                   )}
 
+                  {onEdit && (
+                    <button
+                      type="button"
+                      onClick={() => onEdit(candidate)}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                        background: '#ffffff', color: '#6d28d9',
+                        border: '1px solid #c4b5fd', borderRadius: 8, padding: '7px 14px',
+                        fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                        boxShadow: '0 1px 2px rgba(109, 40, 217, 0.08)',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#f5f3ff'
+                        e.currentTarget.style.borderColor = '#8b5cf6'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = '#ffffff'
+                        e.currentTarget.style.borderColor = '#c4b5fd'
+                      }}
+                      title="Chỉnh sửa toàn bộ thông tin ứng viên"
+                    >
+                      <Edit3 size={13} color="#7c3aed" />
+                      <span>Chỉnh sửa toàn bộ</span>
+                    </button>
+                  )}
                   {onDelete && (
                     <button
                       type="button"

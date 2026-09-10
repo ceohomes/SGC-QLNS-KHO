@@ -16,6 +16,7 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
   const [collapsedBlocks, setCollapsedBlocks] = useState({})
   const [searchStorekeeper, setSearchStorekeeper] = useState('')
   const [searchProject, setSearchProject] = useState('')
+  const [chucVuFilter, setChucVuFilter] = useState(null) // Bộ lọc theo chức danh khi bấm vào thẻ "Theo chức danh"
   const [successToast, setSuccessToast] = useState(null)
   const [saving, setSaving] = useState(false)
   const [blocks, setBlocks] = useState([])
@@ -26,6 +27,11 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
   
   // Selection and edit states
   const [editingStorekeeper, setEditingStorekeeper] = useState(null)
+
+  // Bỏ lọc theo chức danh mỗi khi người dùng đổi dự án đang xem hoặc thay đổi tìm kiếm, tránh gây nhầm lẫn khi danh sách gốc đã thay đổi
+  useEffect(() => {
+    setChucVuFilter(null)
+  }, [selectedProjectId, searchStorekeeper])
 
   const handleSaveStorekeeper = async (updatedRow) => {
     try {
@@ -494,8 +500,8 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
     )
   }, [allProjects, filteredStorekeepers, searchProject])
 
-  // Get active storekeepers (either globally filtered or project-filtered)
-  const activeProjectStorekeepers = useMemo(() => {
+  // Get base storekeepers (either globally filtered or project-filtered), trước khi áp dụng bộ lọc theo chức danh
+  const baseProjectStorekeepers = useMemo(() => {
     const sq = searchStorekeeper.trim()
     let list = []
 
@@ -512,7 +518,7 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
         if (activeProj.id === 'RETIRED') {
           return isRetired
         }
-        
+
         // Non-retired storekeepers can go to their project
         if (isRetired) {
           return false
@@ -520,7 +526,7 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
 
         const projName = (tk.duAn || '').trim()
         const isKnown = allProjects.some(p => p.name.toLowerCase() === projName.toLowerCase())
-        
+
         // Match project assignment
         if (activeProj.id === 'UNASSIGNED') {
           return (!projName || projName === 'none' || projName === '—' || !isKnown)
@@ -534,7 +540,7 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
     return list.sort((a, b) => {
       const roleA = (a.chucVu || '').toLowerCase()
       const roleB = (b.chucVu || '').toLowerCase()
-      
+
       const isLeaderA = roleA.includes('trưởng') || roleA.includes('truong')
       const isLeaderB = roleB.includes('trưởng') || roleB.includes('truong')
 
@@ -544,6 +550,12 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
       return (a.hoTen || '').localeCompare(b.hoTen || '', 'vi')
     })
   }, [selectedProjectId, data, allProjects, projectStats, searchStorekeeper, filteredStorekeepers])
+
+  // Danh sách thủ kho hiển thị cuối cùng: áp dụng thêm bộ lọc theo chức danh (khi bấm vào 1 thẻ "Theo chức danh")
+  const activeProjectStorekeepers = useMemo(() => {
+    if (!chucVuFilter) return baseProjectStorekeepers
+    return baseProjectStorekeepers.filter(tk => (tk.chucVu || 'Khác') === chucVuFilter)
+  }, [baseProjectStorekeepers, chucVuFilter])
 
   const selectedProjectInfo = useMemo(() => {
     return projectStats.find(p => p.id === selectedProjectId)
@@ -610,12 +622,12 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
 
   const chucVuCounts = useMemo(() => {
     const counts = {}
-    activeProjectStorekeepers.forEach(tk => {
+    baseProjectStorekeepers.forEach(tk => {
       const cv = tk.chucVu || 'Khác'
       counts[cv] = (counts[cv] || 0) + 1
     })
     return counts
-  }, [activeProjectStorekeepers])
+  }, [baseProjectStorekeepers])
 
   const renderChucVuStats = () => {
     if (Object.keys(chucVuCounts).length === 0) return null
@@ -633,7 +645,7 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
           let bg = '#f1f5f9'
           let color = '#475569'
           let border = '#cbd5e1'
-          
+
           if (['Thủ kho trưởng', 'Thủ kho trưởng hiện trường', 'Thủ kho nhập liệu'].includes(chucVu)) {
             bg = '#eff6ff'
             color = '#1e40af'
@@ -648,9 +660,19 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
             border = '#a7f3d0'
           }
 
+          const isActive = chucVuFilter === chucVu
+
           return (
-            <div 
+            <div
               key={chucVu}
+              onClick={() => {
+                if (isActive) {
+                  setChucVuFilter(null)
+                } else {
+                  setChucVuFilter(chucVu)
+                }
+              }}
+              title={isActive ? 'Bấm lại để bỏ lọc' : `Xem tất cả nhân sự chức vụ "${chucVu}"`}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -659,14 +681,18 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
                 borderRadius: '6px',
                 fontSize: 11,
                 fontWeight: 600,
-                backgroundColor: bg,
-                color: color,
-                border: `1px solid ${border}`
+                backgroundColor: isActive ? color : bg,
+                color: isActive ? '#ffffff' : color,
+                border: `1.5px solid ${isActive ? color : border}`,
+                cursor: 'pointer',
+                userSelect: 'none',
+                transition: 'all 0.12s ease',
+                boxShadow: isActive ? '0 2px 5px rgba(0,0,0,0.15)' : 'none'
               }}
             >
               <span>{chucVu}</span>
               <span style={{
-                background: 'rgba(0, 0, 0, 0.06)',
+                background: isActive ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.06)',
                 padding: '0.5px 4.5px',
                 borderRadius: '4px',
                 fontWeight: 800,

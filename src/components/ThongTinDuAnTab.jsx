@@ -1373,20 +1373,21 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                         {searchQuery ? 'Không tìm thấy ngăn kho phù hợp' : 'Kéo ngăn kho vào đây, hoặc bấm "Thêm ngăn kho"'}
                       </div>
                     ) : (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 10 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10, alignItems: 'start' }}>
                         {filteredProjects.map((proj) => {
                           const originalIndex = effectiveSelectedBlock.projects.findIndex(p => p.id === proj.id)
                           return (
                             <div
                               key={proj.id}
                               draggable
+                              title={proj.name}
                               onDragStart={(e) => handleProjDragStart(e, effectiveSelectedBlock.id, originalIndex, proj)}
                               onDragOver={(e) => e.preventDefault()}
                               onDrop={(e) => handleProjDrop(e, effectiveSelectedBlock.id, originalIndex)}
                               style={{
                                 padding: '11px 14px', background: '#ffffff', borderRadius: '12px',
-                                border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center',
-                                justifyContent: 'space-between', cursor: 'grab',
+                                border: '1px solid #e2e8f0', display: 'flex', alignItems: 'flex-start',
+                                justifyContent: 'space-between', gap: 8, cursor: 'grab',
                                 boxShadow: '0 1px 3px rgba(0,0,0,0.01)', transition: 'all 0.15s ease'
                               }}
                               onMouseOver={(e) => {
@@ -1398,17 +1399,18 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                                 e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.01)'
                               }}
                             >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-                                <GripVertical size={13} style={{ color: '#94a3b8', cursor: 'grab', flexShrink: 0, opacity: 0.7 }} />
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flex: 1, minWidth: 0 }}>
+                                <GripVertical size={13} style={{ color: '#94a3b8', cursor: 'grab', flexShrink: 0, opacity: 0.7, marginTop: 2 }} />
                                 <span style={{
                                   background: selColors.color, color: '#ffffff', fontFamily: '"Roboto", sans-serif',
-                                  fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: '6px', flexShrink: 0
+                                  fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: '6px', flexShrink: 0, marginTop: 1
                                 }}>
                                   {effectiveSelectedBlock.badge}
                                 </span>
                                 <strong style={{
                                   fontFamily: '"Roboto", sans-serif', fontSize: 12.5, color: '#334155', fontWeight: 600,
-                                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left'
+                                  whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'break-word', textAlign: 'left',
+                                  lineHeight: 1.4
                                 }}>
                                   {proj.name}
                                 </strong>
