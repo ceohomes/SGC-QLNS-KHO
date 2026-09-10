@@ -282,23 +282,26 @@ export default function TuyenDungTab({
 }) {
   const [candidates, setCandidates] = useState(() => {
     try {
+      // Đánh dấu đã từng khởi tạo dữ liệu mẫu hay chưa - tránh việc các ứng viên mẫu
+      // (VD: "Nguyễn Thị Minh Châu", "Bùi Văn Dương") tự động hồi sinh sau khi đã bị xóa.
+      const hasInitialized = localStorage.getItem('sgc_tuyen_dung_initialized')
       const saved = localStorage.getItem('sgc_tuyen_dung_candidates')
       if (saved) {
         const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           const validCandidates = parsed.filter(c => c && c.hoTen && c.id && c.id !== 'rec-000')
-          if (validCandidates.length > 0) {
-            // Đảm bảo không mất các ứng viên thực tế đã tải lên GitHub
-            const existingNames = new Set(validCandidates.map(c => (c.hoTen || '').toLowerCase().trim()))
-            const missingDefaults = DEFAULT_REAL_CANDIDATES.filter(d => !existingNames.has(d.hoTen.toLowerCase().trim()))
-            return [...validCandidates, ...missingDefaults].map(normalizeCandidate)
-          }
+          // Chỉ trả về mảng rỗng nếu người dùng đã chủ động xóa hết (đã từng khởi tạo trước đó)
+          return validCandidates.map(normalizeCandidate)
         }
+      }
+      if (!hasInitialized) {
+        localStorage.setItem('sgc_tuyen_dung_initialized', '1')
+        return DEFAULT_REAL_CANDIDATES.map(normalizeCandidate)
       }
     } catch (e) {
       console.warn('Lỗi đọc localStorage sgc_tuyen_dung_candidates:', e)
     }
-    return DEFAULT_REAL_CANDIDATES.map(normalizeCandidate)
+    return []
   })
 
   // Trạng thái liên thông Supabase
@@ -362,6 +365,11 @@ export default function TuyenDungTab({
             return rest
           })))
         } else {
+          // Supabase là nguồn dữ liệu chính thức và hiện đang trống -> đồng bộ về trống,
+          // tuyệt đối không giữ lại các ứng viên mẫu/cũ để tránh hồi sinh hồ sơ đã xóa
+          setCandidates([])
+          localStorage.setItem('sgc_tuyen_dung_candidates', JSON.stringify([]))
+          localStorage.setItem('sgc_tuyen_dung_initialized', '1')
           setSupabaseCandidateStatus('connected')
         }
       }
@@ -3123,10 +3131,10 @@ function CandidateDetailModal({
                       type="button"
                       onClick={() => onEdit(candidate)}
                       style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
                         background: '#ffffff', color: '#6d28d9',
-                        border: '1px solid #c4b5fd', borderRadius: 8, padding: '7px 14px',
-                        fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                        border: '1px solid #c4b5fd', borderRadius: 8, padding: '9px 16px',
+                        fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
                         boxShadow: '0 1px 2px rgba(109, 40, 217, 0.08)',
                         transition: 'all 0.15s ease'
                       }}
@@ -3138,10 +3146,10 @@ function CandidateDetailModal({
                         e.currentTarget.style.background = '#ffffff'
                         e.currentTarget.style.borderColor = '#c4b5fd'
                       }}
-                      title="Chỉnh sửa toàn bộ thông tin ứng viên"
+                      title="Chỉnh sửa hồ sơ ứng viên"
                     >
-                      <Edit3 size={13} color="#7c3aed" />
-                      <span>Chỉnh sửa toàn bộ</span>
+                      <Edit3 size={14} color="#7c3aed" />
+                      <span>Chỉnh sửa hồ sơ</span>
                     </button>
                   )}
                   {onDelete && (
@@ -3149,12 +3157,12 @@ function CandidateDetailModal({
                       type="button"
                       onClick={() => onDelete(candidate)}
                       style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                        padding: '7px 14px', borderRadius: 8,
+                        display: 'inline-flex', alignItems: 'center', gap: 7,
+                        padding: '9px 16px', borderRadius: 8,
                         border: '1px solid #fecaca',
                         background: '#fef2f2',
                         color: '#dc2626', fontWeight: 700, cursor: 'pointer',
-                        fontSize: 13, whiteSpace: 'nowrap',
+                        fontSize: 13.5, whiteSpace: 'nowrap',
                         transition: 'all 0.15s ease'
                       }}
                       onMouseEnter={(e) => {
@@ -3167,7 +3175,7 @@ function CandidateDetailModal({
                       }}
                       title="Xóa hồ sơ ứng viên này"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={15} />
                       <span>Xóa hồ sơ</span>
                     </button>
                   )}
@@ -3202,7 +3210,7 @@ function CandidateDetailModal({
                       color: '#ffffff', border: 'none', fontWeight: 700, fontSize: 12.5, cursor: 'pointer'
                     }}
                   >
-                    <span>Xem tại DS Thủ kho</span>
+                    <span>Xem tại DS theo dự án</span>
                     <ExternalLink size={14} />
                   </button>
                 </div>

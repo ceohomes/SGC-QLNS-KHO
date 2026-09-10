@@ -26,6 +26,7 @@ export default function App() {
   const [isPinned, setIsPinned] = useState(false)
   const [initialSearch, setInitialSearch] = useState('')
   const [initialDuAnFilter, setInitialDuAnFilter] = useState('')
+  const [initialDuAnSearch, setInitialDuAnSearch] = useState('')
 
   // Hàm tải dữ liệu thực tế từ Supabase
   const loadData = async () => {
@@ -198,8 +199,8 @@ export default function App() {
   }
 
   const handleNavigateToStorekeeper = (maNV) => {
-    setInitialSearch(maNV)
-    setTab('danhsach')
+    setInitialDuAnSearch(maNV)
+    setTab('duan')
   }
 
   // Đếm số lượng để hiển thị badge số lượng trong Sidebar
@@ -284,7 +285,15 @@ export default function App() {
                 />
               )}
               {tab === 'thongtinduan' && <ThongTinDuAnTab data={data} onReload={loadData} />}
-              {tab === 'duan' && <DuAnTab data={data} onUpdateData={setData} onReload={loadData} />}
+              {tab === 'duan' && (
+                <DuAnTab
+                  data={data}
+                  onUpdateData={setData}
+                  onReload={loadData}
+                  initialSearch={initialDuAnSearch}
+                  setInitialSearch={setInitialDuAnSearch}
+                />
+              )}
               {tab === 'dinhbien' && <DinhBienTab data={data} onReload={loadData} />}
             </>
           )}

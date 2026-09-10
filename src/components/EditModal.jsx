@@ -235,25 +235,6 @@ function EditThuKhoPopupModal({ data, formData, onClose, onSave, availableBlocks
               </div>
             </div>
 
-            {/* Hàng 3: Chức vụ */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 5, color: '#1e293b' }}>
-                  Chức vụ
-                </label>
-                <select
-                  className="input"
-                  style={{ width: '100%', height: 40, borderRadius: 8, fontSize: 14 }}
-                  value={modalForm.chucVu || 'Thủ kho hiện trường'}
-                  onChange={e => setModalForm({ ...modalForm, chucVu: e.target.value })}
-                >
-                  {CHUC_VU_LIST.map(val => (
-                    <option key={val} value={val}>{val}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
             {/* Hàng 4: Trình độ & Số năm kinh nghiệm */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
               <div>

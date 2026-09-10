@@ -1,15 +1,17 @@
 import React, { useMemo, useState, useEffect } from 'react'
-import { 
-  Building2, Search, MapPin, Briefcase, Users, GripVertical, Check, 
+import {
+  Building2, Search, MapPin, Briefcase, Users, GripVertical, Check,
   RefreshCw, UserMinus, ArrowRightLeft, MoveRight, ChevronRight,
   UserCheck, ExternalLink, Columns, LayoutGrid, Pencil, ChevronDown,
-  ChevronUp, Layers, Filter
+  ChevronUp, Layers, Filter, Download
 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import { chucVuBadgeClass, avatarColor, initials } from '../constants.js'
+import { exportThuKhoExcel } from '../excelExporter.js'
+import CustomAlert from './CustomAlert'
 import EditModal from './EditModal.jsx'
 
-export default function DuAnTab({ data = [], onUpdateData, onReload }) {
+export default function DuAnTab({ data = [], onUpdateData, onReload, initialSearch, setInitialSearch }) {
   const [selectedProjectId, setSelectedProjectId] = useState('UNASSIGNED') // Selected source project
   const [viewMode, setViewMode] = useState('split') // 'split' | 'kanban'
   const [selectedBlockFilter, setSelectedBlockFilter] = useState('ALL')
@@ -28,10 +30,52 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
   // Selection and edit states
   const [editingStorekeeper, setEditingStorekeeper] = useState(null)
 
+  // Alert / Confirm dialog state (dùng cho xác nhận xóa hồ sơ trong EditModal)
+  const [alertConfig, setAlertConfig] = useState(null)
+
+  const showAlert = (message, severity = 'info', title = 'Thông báo') => {
+    setAlertConfig({ type: 'alert', message, severity, title })
+  }
+
+  const showConfirm = (message, onConfirm, onCancel, title = 'Xác nhận', severity = 'info') => {
+    setAlertConfig({ type: 'confirm', message, onConfirm, onCancel, title, severity })
+  }
+
+  // Xóa hồ sơ thủ kho khỏi Supabase và cập nhật dữ liệu cục bộ
+  const handleDeleteStorekeeper = async (formData) => {
+    const maNV = formData?.maNV
+    if (!maNV) return
+    try {
+      const { error } = await supabase
+        .from('danh_sach_thu_kho')
+        .delete()
+        .eq('ma_nv', maNV)
+      if (error) throw error
+
+      if (onUpdateData) {
+        onUpdateData(prev => prev.filter(tk => tk.maNV !== maNV))
+      }
+      setSuccessToast(`Đã xóa hồ sơ "${formData.hoTen || maNV}" khỏi hệ thống!`)
+      if (onReload) await onReload()
+    } catch (err) {
+      console.error('Lỗi khi xóa hồ sơ thủ kho:', err)
+      showAlert('Lỗi khi xóa hồ sơ: ' + (err.message || err), 'error', 'LỖI XÓA HỒ SƠ')
+      throw err
+    }
+  }
+
   // Bỏ lọc theo chức danh mỗi khi người dùng đổi dự án đang xem hoặc thay đổi tìm kiếm, tránh gây nhầm lẫn khi danh sách gốc đã thay đổi
   useEffect(() => {
     setChucVuFilter(null)
   }, [selectedProjectId, searchStorekeeper])
+
+  // Nhận yêu cầu tìm kiếm ban đầu từ nơi khác điều hướng tới (VD: bấm "Xem tại DS Thủ kho" sau khi tuyển dụng ứng viên)
+  useEffect(() => {
+    if (initialSearch) {
+      setSearchStorekeeper(initialSearch)
+      if (setInitialSearch) setInitialSearch('')
+    }
+  }, [initialSearch, setInitialSearch])
 
   const handleSaveStorekeeper = async (updatedRow) => {
     try {
@@ -933,7 +977,27 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
 
         {/* View Mode Switcher & Global Storekeeper Search Bar & Save Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          
+
+          {/* Nút xuất Excel danh sách nhân sự đang hiển thị */}
+          <button
+            type="button"
+            onClick={() => exportThuKhoExcel(activeProjectStorekeepers)}
+            disabled={activeProjectStorekeepers.length === 0}
+            title="Xuất danh sách nhân sự đang hiển thị ra file Excel"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+              background: activeProjectStorekeepers.length === 0 ? '#cbd5e1' : '#059669',
+              color: '#ffffff', border: 'none',
+              cursor: activeProjectStorekeepers.length === 0 ? 'not-allowed' : 'pointer',
+              boxShadow: activeProjectStorekeepers.length === 0 ? 'none' : '0 4px 6px -1px rgba(5,150,105,0.2)',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <Download size={15} />
+            <span>Xuất Excel ({activeProjectStorekeepers.length})</span>
+          </button>
+
           {/* View Mode Toggle */}
           <div style={{ display: 'flex', background: '#f1f5f9', border: '1.5px solid #cbd5e1', borderRadius: '10px', padding: '3px', gap: '3px' }}>
             <button
@@ -1715,11 +1779,30 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
 
 
       {editingStorekeeper && (
-        <EditModal 
-          row={editingStorekeeper} 
-          onClose={() => setEditingStorekeeper(null)} 
-          onSave={handleSaveStorekeeper} 
-          blocksConfig={blocks} 
+        <EditModal
+          row={editingStorekeeper}
+          onClose={() => setEditingStorekeeper(null)}
+          onSave={handleSaveStorekeeper}
+          onDelete={handleDeleteStorekeeper}
+          showConfirm={showConfirm}
+          blocksConfig={blocks}
+        />
+      )}
+
+      {alertConfig && (
+        <CustomAlert
+          type={alertConfig.type}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          severity={alertConfig.severity}
+          onConfirm={() => {
+            if (alertConfig.onConfirm) alertConfig.onConfirm()
+            setAlertConfig(null)
+          }}
+          onCancel={() => {
+            if (alertConfig.onCancel) alertConfig.onCancel()
+            setAlertConfig(null)
+          }}
         />
       )}
     </div>
