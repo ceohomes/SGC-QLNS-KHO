@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import mammoth from "mammoth";
+import { createClient } from "@supabase/supabase-js";
 
 const app = express();
 const PORT = 3000;
@@ -11,13 +12,130 @@ const PORT = 3000;
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
+// ---------------------------------------------------------------
+// CÀI ĐẶT GEMINI API KEY ĐỘNG QUA SUPABASE
+// ---------------------------------------------------------------
+// Cho phép cấu hình Gemini API Key (dùng để AI quét CV) ngay trên giao diện
+// (nút "Cài đặt API Key") thay vì phải sửa file .env và deploy lại.
+// Giá trị được lưu trong bảng `sgc_cai_dat_api` trên Supabase và CHỈ được
+// đọc/ghi bởi server bằng SUPABASE_SERVICE_ROLE_KEY (secret riêng, không
+// bao giờ đưa vào bundle frontend). Nếu chưa cấu hình biến này, hệ thống
+// vẫn hoạt động bình thường và chỉ dùng biến môi trường GEMINI_API_KEY trong .env như cũ.
+// Các key khác (GitHub Token, repo, branch, thư mục CV) KHÔNG thuộc tính năng này,
+// vẫn cấu hình cố định qua biến môi trường .env / Cloudflare như trước.
+const SUPABASE_ADMIN_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const supabaseAdmin = (SUPABASE_ADMIN_URL && SUPABASE_SERVICE_ROLE_KEY)
+  ? createClient(SUPABASE_ADMIN_URL, SUPABASE_SERVICE_ROLE_KEY)
+  : null;
+
+if (!supabaseAdmin) {
+  console.warn(
+    "[Cai dat API Key] Chưa cấu hình SUPABASE_SERVICE_ROLE_KEY -> tính năng lưu API Key qua giao diện sẽ bị vô hiệu hóa. " +
+    "Hệ thống vẫn dùng bình thường các biến môi trường (.env) như trước."
+  );
+}
+
+const SETTINGS_TABLE = "sgc_cai_dat_api";
+const settingsCache = new Map<string, { value: string; expiresAt: number }>();
+const SETTINGS_CACHE_TTL_MS = 30_000;
+
+// Đọc một giá trị cấu hình: ưu tiên biến môi trường (.env), sau đó tới Supabase.
+async function getSetting(key: string): Promise<string> {
+  if (process.env[key]) return process.env[key] as string;
+
+  const cached = settingsCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+  if (!supabaseAdmin) return "";
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from(SETTINGS_TABLE)
+      .select("gia_tri")
+      .eq("id", key)
+      .maybeSingle();
+    if (error) {
+      console.warn(`Không đọc được cấu hình '${key}' từ Supabase:`, error.message);
+      return "";
+    }
+    const value = (data && data.gia_tri) || "";
+    settingsCache.set(key, { value, expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS });
+    return value;
+  } catch (err: any) {
+    console.warn(`Lỗi khi đọc cấu hình '${key}':`, err.message);
+    return "";
+  }
+}
+
+// Ghi một giá trị cấu hình vào Supabase (yêu cầu đã cấu hình SUPABASE_SERVICE_ROLE_KEY).
+async function setSetting(key: string, value: string): Promise<void> {
+  if (!supabaseAdmin) {
+    throw new Error("Chưa cấu hình SUPABASE_SERVICE_ROLE_KEY phía server nên không thể lưu API Key vào Supabase.");
+  }
+  const { error } = await supabaseAdmin
+    .from(SETTINGS_TABLE)
+    .upsert({ id: key, gia_tri: value, updated_at: new Date().toISOString() }, { onConflict: "id" });
+  if (error) throw new Error(error.message);
+  settingsCache.set(key, { value, expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS });
+}
+
+function maskSecret(value: string): string {
+  if (!value) return "";
+  if (value.length <= 8) return "••••••••";
+  return `${value.slice(0, 4)}••••${value.slice(-4)}`;
+}
+
 // Health check endpoint
-app.get("/api/health", (_req, res) => {
+app.get("/api/health", async (_req, res) => {
+  const geminiKey = await getSetting("GEMINI_API_KEY");
   res.json({
     status: "ok",
-    hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+    hasGeminiKey: Boolean(geminiKey),
+    apiKeySettingsStorageEnabled: Boolean(supabaseAdmin),
     time: new Date().toISOString()
   });
+});
+
+// Lấy trạng thái cấu hình Gemini API Key hiện tại (KHÔNG trả về giá trị thật,
+// chỉ trả về đã cấu hình hay chưa + vài ký tự đầu/cuối đã che dấu để đối chiếu).
+app.get("/api/settings", async (_req, res) => {
+  try {
+    const geminiKey = await getSetting("GEMINI_API_KEY");
+
+    res.json({
+      storageEnabled: Boolean(supabaseAdmin),
+      geminiApiKey: { configured: Boolean(geminiKey), masked: maskSecret(geminiKey) }
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Không thể tải cấu hình" });
+  }
+});
+
+// Lưu / cập nhật Gemini API Key. Chỉ ghi vào Supabase (qua Service Role Key),
+// không bao giờ log giá trị bí mật ra console.
+app.post("/api/settings", async (req, res) => {
+  try {
+    if (!supabaseAdmin) {
+      return res.status(400).json({
+        success: false,
+        error: "Server chưa cấu hình SUPABASE_SERVICE_ROLE_KEY nên không thể lưu Gemini API Key. Vui lòng thêm biến môi trường này rồi khởi động lại server."
+      });
+    }
+
+    const { geminiApiKey } = req.body || {};
+
+    if (typeof geminiApiKey !== "string" || !geminiApiKey.trim()) {
+      return res.status(400).json({ success: false, error: "Vui lòng nhập Gemini API Key." });
+    }
+
+    await setSetting("GEMINI_API_KEY", geminiApiKey.trim());
+
+    res.json({ success: true, updated: ["GEMINI_API_KEY"] });
+  } catch (err: any) {
+    console.error("Lỗi khi lưu Gemini API Key:", err.message);
+    res.status(500).json({ success: false, error: err.message || "Không thể lưu cấu hình" });
+  }
 });
 
 // Helper to extract text from PDF buffer using pdfjs-dist
@@ -308,7 +426,7 @@ app.post("/api/parse-cv", async (req, res) => {
     // Run baseline heuristic extract from extractedText
     const baselineFallback = fallbackHeuristicExtract(extractedText, fileName);
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = await getSetting("GEMINI_API_KEY");
 
     // If no API key is set, return rich heuristic extraction
     if (!apiKey) {
@@ -474,14 +592,15 @@ function sanitizeFileNameForGitHub(originalName: string): string {
 
 // Check GitHub repo config status
 app.get("/api/github-status", async (_req, res) => {
-  const token = process.env.GITHUB_TOKEN || "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";
+  const token = process.env.GITHUB_TOKEN || "";
   const repo = process.env.GITHUB_REPO || "ceohomes/CV-TQT";
   const folder = process.env.GITHUB_CV_FOLDER || "cvs";
+  const branch = process.env.GITHUB_BRANCH || "main";
   res.json({
     configured: Boolean(token),
     repo: repo,
     folder: folder,
-    branch: process.env.GITHUB_BRANCH || "main"
+    branch: branch
   });
 });
 
@@ -491,7 +610,7 @@ app.get("/api/github-cv-file", async (req, res) => {
     const fileParam = (req.query.file as string) || (req.query.fileName as string) || "";
     const urlParam = (req.query.url as string) || "";
 
-    const token = process.env.GITHUB_TOKEN || "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";
+    const token = process.env.GITHUB_TOKEN || "";
     const repo = process.env.GITHUB_REPO || "ceohomes/CV-TQT";
     const branch = process.env.GITHUB_BRANCH || "main";
     const folder = process.env.GITHUB_CV_FOLDER || "cvs";
@@ -566,7 +685,7 @@ app.post("/api/upload-cv-github", async (req, res) => {
       return res.status(400).json({ success: false, error: "base64Data is required" });
     }
 
-    const token = process.env.GITHUB_TOKEN || "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";
+    const token = process.env.GITHUB_TOKEN || "";
     const repo = process.env.GITHUB_REPO || "ceohomes/CV-TQT";
     const branch = process.env.GITHUB_BRANCH || "main";
     const folder = process.env.GITHUB_CV_FOLDER || "cvs";

@@ -6,12 +6,13 @@ import {
   Check, X, ChevronRight, UserCheck, ShieldCheck, FileSpreadsheet,
   Layers, Building, HelpCircle, ExternalLink, Users, Target, XCircle,
   ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, RotateCw, FileCheck,
-  Database, Code, Copy, Save, ChevronDown, Lock
+  Database, Code, Copy, Save, ChevronDown, Lock, KeyRound
 } from 'lucide-react'
 import ExcelJS from 'exceljs'
 import CustomAlert from './CustomAlert.jsx'
 import CandidatePdfViewer from './CandidatePdfViewer.jsx'
 import CaiDatChucVuModal, { DEFAULT_CHUC_VU_LIST } from './CaiDatChucVuModal.jsx'
+import CaiDatApiKeyModal from './CaiDatApiKeyModal.jsx'
 import { BAN_CHUOI_KHOI_LIST } from '../mockData.js'
 import { supabase } from '../supabaseClient'
 import { tuyenDungBadgeClass, chucVuBadgeClass, avatarColor, initials, formatDate } from '../constants.js'
@@ -416,6 +417,7 @@ export default function TuyenDungTab({
   const [alertConfig, setAlertConfig] = useState(null)
   const [editingCandidate, setEditingCandidate] = useState(null)
   const [showChucVuModal, setShowChucVuModal] = useState(false)
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false)
 
   // Danh mục chức vụ (Supabase + LocalStorage)
   const [customPositions, setCustomPositions] = useState(() => {
@@ -847,6 +849,41 @@ export default function TuyenDungTab({
             <span>Cài đặt Chức vụ</span>
           </button>
 
+          {/* Nút Cài đặt API Key (Gemini / GitHub) */}
+          <button
+            type="button"
+            onClick={() => setShowApiKeyModal(true)}
+            style={{
+              background: '#ffffff',
+              color: '#0f58a7',
+              border: '1.5px solid #0f58a7',
+              fontWeight: 600,
+              fontSize: '14px',
+              padding: '0 16px',
+              height: '40px',
+              borderRadius: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              cursor: 'pointer',
+              boxSizing: 'border-box',
+              boxShadow: '0 1px 3px rgba(15, 88, 167, 0.12)',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = '#f0f7ff'
+              e.currentTarget.style.borderColor = '#004085'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = '#ffffff'
+              e.currentTarget.style.borderColor = '#0f58a7'
+            }}
+            title="Cài đặt Gemini API Key, GitHub Token và các cấu hình bí mật, lưu trữ trên Supabase"
+          >
+            <KeyRound size={16} style={{ color: '#0f58a7' }} />
+            <span>Cài đặt API Key</span>
+          </button>
 
         </div>
 
@@ -1423,6 +1460,12 @@ export default function TuyenDungTab({
         onClose={() => setShowChucVuModal(false)}
         onPositionsUpdated={(updated) => setCustomPositions(updated)}
         candidateCountByPosition={candidateCountByPosition}
+      />
+
+      {/* Modal Cài đặt API Key */}
+      <CaiDatApiKeyModal
+        isOpen={showApiKeyModal}
+        onClose={() => setShowApiKeyModal(false)}
       />
 
       {/* Candidate Details Modal */}
