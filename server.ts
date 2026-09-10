@@ -6,11 +6,27 @@ import mammoth from "mammoth";
 import { createClient } from "@supabase/supabase-js";
 
 const app = express();
-const PORT = 3000;
+// Render/Railway và hầu hết dịch vụ Node hosting đều CẤP PORT động qua biến môi trường
+// PORT (khác mỗi lần deploy) — bắt buộc phải lắng nghe đúng cổng đó, không được cố định.
+const PORT = Number(process.env.PORT) || 3000;
 
 // Allow large payloads for PDF / DOCX base64 uploads
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+// ---------------------------------------------------------------
+// CORS — cho phép frontend host ở domain KHÁC (ví dụ Cloudflare Pages) gọi được
+// API này khi server chạy trên một domain riêng (Render/Railway...). Nếu frontend
+// và backend cùng domain (ví dụ chạy chung 1 server lúc dev/production) thì CORS
+// không ảnh hưởng gì, cứ để nguyên cũng không sao.
+// ---------------------------------------------------------------
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
 
 // ---------------------------------------------------------------
 // CÀI ĐẶT GEMINI API KEY ĐỘNG QUA SUPABASE

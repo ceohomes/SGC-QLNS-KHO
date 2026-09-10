@@ -7,6 +7,7 @@ import {
 import * as pdfjsLib from 'pdfjs-dist/build/pdf.mjs'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import { blobToArrayBuffer, renderCandidateCvToCanvas } from '../pdfStorage.js'
+import { apiUrl } from '../apiBase'
 
 // Configure worker URL
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker
@@ -152,9 +153,9 @@ export default function CandidatePdfViewer({
     (candidate.fileName && (candidate.fileName.startsWith('17') || candidate.fileName.includes('_') || candidate.fileName.endsWith('.pdf')))
   )
 
-  const ghProxyUrl = candidate.fileName 
-    ? `/api/github-cv-file?file=${encodeURIComponent(candidate.fileName)}` 
-    : (candidate.fileUrl ? `/api/github-cv-file?url=${encodeURIComponent(candidate.fileUrl)}` : '')
+  const ghProxyUrl = candidate.fileName
+    ? apiUrl(`/api/github-cv-file?file=${encodeURIComponent(candidate.fileName)}`)
+    : (candidate.fileUrl ? apiUrl(`/api/github-cv-file?url=${encodeURIComponent(candidate.fileUrl)}`) : '')
 
   const ghRawUrl = candidate.fileUrl || (candidate.fileName ? `https://raw.githubusercontent.com/ceohomes/CV-TQT/main/cvs/${candidate.fileName}` : '')
   const ghWebUrl = candidate.githubUrl || (candidate.fileName ? `https://github.com/ceohomes/CV-TQT/blob/main/cvs/${candidate.fileName}` : 'https://github.com/ceohomes/CV-TQT/tree/main/cvs')

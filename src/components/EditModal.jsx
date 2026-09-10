@@ -26,6 +26,7 @@ import {
   generateCandidatePdfBlob 
 } from '../pdfStorage.js'
 import { initials, formatDate, trangThaiBadgeClass, danhGiaBadgeClass } from '../constants.js'
+import { apiUrl } from '../apiBase'
 
 // Helper to normalize date string to dd/mm/yyyy
 function toDdMmYyyy(val) {
@@ -709,7 +710,7 @@ export default function EditModal({
         })
       }
 
-      const res = await fetch('/api/parse-cv', {
+      const res = await fetch(apiUrl('/api/parse-cv'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -758,7 +759,7 @@ export default function EditModal({
       // Đẩy lên GitHub repository
       let ghResult = null
       try {
-        const ghRes = await fetch('/api/upload-cv-github', {
+        const ghRes = await fetch(apiUrl('/api/upload-cv-github'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

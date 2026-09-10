@@ -15,6 +15,7 @@ import CaiDatChucVuModal, { DEFAULT_CHUC_VU_LIST } from './CaiDatChucVuModal.jsx
 import CaiDatApiKeyModal from './CaiDatApiKeyModal.jsx'
 import { BAN_CHUOI_KHOI_LIST } from '../mockData.js'
 import { supabase } from '../supabaseClient'
+import { apiUrl } from '../apiBase'
 import { tuyenDungBadgeClass, chucVuBadgeClass, avatarColor, initials, formatDate } from '../constants.js'
 import { 
   saveCandidatePdf, 
@@ -1768,7 +1769,7 @@ function AICVUploadModal({ onClose, onAddCandidates, positionsList = [], project
         })
 
         // Call backend /api/parse-cv
-        const response = await fetch('/api/parse-cv', {
+        const response = await fetch(apiUrl('/api/parse-cv'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1791,7 +1792,7 @@ function AICVUploadModal({ onClose, onAddCandidates, positionsList = [], project
           // 1. Tự động lưu tệp CV vào kho GitHub (ceohomes/CV-TQT / cvs) để tránh tăng dung lượng Supabase
           let ghUploadResult = null
           try {
-            const ghRes = await fetch('/api/upload-cv-github', {
+            const ghRes = await fetch(apiUrl('/api/upload-cv-github'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -2587,7 +2588,7 @@ function CandidateDetailModal({
         })
       }
 
-      const res = await fetch('/api/parse-cv', {
+      const res = await fetch(apiUrl('/api/parse-cv'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2640,7 +2641,7 @@ function CandidateDetailModal({
       // Tự động tải tệp PDF mới lên kho GitHub (ceohomes/CV-TQT / cvs)
       let ghResult = null
       try {
-        const ghRes = await fetch('/api/upload-cv-github', {
+        const ghRes = await fetch(apiUrl('/api/upload-cv-github'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
