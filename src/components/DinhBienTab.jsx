@@ -5,6 +5,7 @@ import {
   TrendingDown, ArrowLeftRight, Database, Table, PlusCircle, X
 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
+import useEscapeKey from '../hooks/useEscapeKey'
 
 const SQL_CODE_DINH_BIEN = `-- -------------------------------------------------------------
 -- TẠO BẢNG ĐỊNH BIÊN NHÂN SỰ HÀNG THÁNG (sgc_dinh_bien_nhan_su)
@@ -49,6 +50,7 @@ export default function DinhBienTab({ data = [], onReload }) {
   
   // Trạng thái hiển thị chi tiết nhân sự thực tế
   const [selectedProjectStaff, setSelectedProjectStaff] = useState(null)
+  useEscapeKey(() => setSelectedProjectStaff(null), Boolean(selectedProjectStaff))
 
   // Danh sách nhân viên thực tế của dự án đang chọn
   const staffDetailsList = useMemo(() => {

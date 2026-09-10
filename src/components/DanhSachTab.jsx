@@ -9,6 +9,7 @@ import { buildThuKhoDbPayload } from '../storekeeperSchema.js'
 import CustomAlert from './CustomAlert.jsx'
 import ExcelJS from 'exceljs'
 import EditModal from './EditModal.jsx'
+import useEscapeKey from '../hooks/useEscapeKey'
 
 const COLOR_PRESETS = [
   { color: '#64748b', bgColor: '#f8fafc', borderColor: '#cbd5e1', badgeBg: '#e2e8f0' },
@@ -978,6 +979,8 @@ export default function DanhSachTab({ data, onUpdateData, dbStatus, onReload, in
 
 
 function ImportModal({ data, onUpdateData, dbStatus, onReload, onClose, initialData, fileName, setFileName, showAlert, showConfirm }) {
+  useEscapeKey(onClose, true)
+
   const [importedData, setImportedData] = useState(initialData || [])
   const [errorMsg, setErrorMsg] = useState('')
   const [activeTab, setActiveTab] = useState('preview') // 'preview' or 'sql'

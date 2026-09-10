@@ -7,6 +7,7 @@ import {
   Save, AlertCircle, Eye, User, Edit3, Lock
 } from 'lucide-react'
 import CandidatePdfViewer from './CandidatePdfViewer.jsx'
+import useEscapeKey from '../hooks/useEscapeKey'
 import { DEFAULT_REAL_CANDIDATES } from './TuyenDungTab.jsx'
 import { 
   DU_AN_LIST, 
@@ -80,6 +81,8 @@ function AutoExpandingTextarea({ value, onChange, placeholder, minHeight = 90 })
 
 // Modal chỉnh sửa thông tin nhân sự / thủ kho chuẩn như sheet Tuyển dụng
 function EditThuKhoPopupModal({ data, formData, onClose, onSave, availableBlocks = [] }) {
+  useEscapeKey(onClose, true)
+
   const currentData = formData || data || {}
   const [modalForm, setModalForm] = useState(() => ({
     ...currentData,
@@ -159,7 +162,17 @@ function EditThuKhoPopupModal({ data, formData, onClose, onSave, availableBlocks
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto', fontFamily: "'Roboto', sans-serif" }}>
+        <form
+          onSubmit={handleSubmit}
+          onKeyDown={(e) => {
+            // Ngăn bấm Enter khi đang gõ trong ô input/select làm submit/đóng form sớm
+            // ngoài ý muốn (trình duyệt mặc định submit form khi Enter trong các ô này).
+            if (e.key === 'Enter' && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) {
+              e.preventDefault()
+            }
+          }}
+          style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto', fontFamily: "'Roboto', sans-serif" }}
+        >
           <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
             
             {/* Hàng 1: Họ và tên & Số điện thoại */}
@@ -570,6 +583,8 @@ export default function EditModal({
   const [isFullScreen, setIsFullScreen] = useState(defaultFullScreen !== undefined ? defaultFullScreen : true)
   const [isRescanning, setIsRescanning] = useState(false)
   const [rescanSuccessMsg, setRescanSuccessMsg] = useState('')
+
+  useEscapeKey(onClose, Boolean(row))
 
   const displayAge = useMemo(() => {
     if (formData.tuoi) return formData.tuoi

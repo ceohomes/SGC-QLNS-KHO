@@ -1,7 +1,10 @@
 import React from 'react'
 import { AlertCircle, CheckCircle, Info, AlertTriangle, X, Trash2 } from 'lucide-react'
+import useEscapeKey from '../hooks/useEscapeKey'
 
 export default function CustomAlert({ type = 'alert', title, message, severity = 'info', onConfirm, onCancel }) {
+  useEscapeKey(onCancel || onConfirm, true)
+
   const getIcon = () => {
     switch (severity) {
       case 'success':

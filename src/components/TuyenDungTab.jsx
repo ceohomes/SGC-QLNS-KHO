@@ -13,6 +13,7 @@ import CustomAlert from './CustomAlert.jsx'
 import CandidatePdfViewer from './CandidatePdfViewer.jsx'
 import CaiDatChucVuModal, { DEFAULT_CHUC_VU_LIST } from './CaiDatChucVuModal.jsx'
 import CaiDatApiKeyModal from './CaiDatApiKeyModal.jsx'
+import useEscapeKey from '../hooks/useEscapeKey'
 import { BAN_CHUOI_KHOI_LIST } from '../mockData.js'
 import { supabase } from '../supabaseClient'
 import { apiUrl } from '../apiBase'
@@ -1693,6 +1694,8 @@ function AICVUploadModal({ onClose, onAddCandidates, positionsList = [], project
     }
   }
 
+  useEscapeKey(handleModalClose, true)
+
   const handleDrag = (e) => {
     e.preventDefault()
     e.stopPropagation()
@@ -2214,14 +2217,18 @@ function RecruitConfirmModal({
   onChangeChucVu,
   positionsList = [],
   projectsList = [],
-  onConfirm, 
-  onCancel 
+  onConfirm,
+  onCancel
 }) {
+  useEscapeKey(onCancel, true)
+
   return (
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)',
+      // zIndex cao hơn CandidateDetailModal (9999) để luôn hiển thị ĐÈ LÊN TRÊN
+      // màn hình chi tiết ứng viên khi bấm "Cấp mã & Tuyển dụng" ngay trong đó.
       backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center',
-      justifyContent: 'center', zIndex: 9999, padding: 16,
+      justifyContent: 'center', zIndex: 10050, padding: 16,
       fontFamily: "'Roboto', sans-serif"
     }}>
       <div style={{
@@ -2425,8 +2432,10 @@ function CandidateDetailModal({
   onNavigateToStorekeeper, 
   onEdit, 
   onDelete, 
-  onUpdateCandidate 
+  onUpdateCandidate
 }) {
+  useEscapeKey(onClose, true)
+
   const isRecruited = Boolean(candidate.maNV) || candidate.trangThai === 'Đã tuyển dụng'
   const [isFullScreen, setIsFullScreen] = useState(true)
   const [currentPdfBlob, setCurrentPdfBlob] = useState(null)
@@ -3268,6 +3277,8 @@ function AutoExpandingTextarea({ value, onChange, placeholder, minHeight = 90 })
 // Edit / Add Candidate Modal Component
 // -------------------------------------------------------------
 function EditCandidateModal({ candidate, onClose, onSave, positionsList = [], projectsList = [] }) {
+  useEscapeKey(onClose, true)
+
   // Chuẩn hóa danh sách tên chức vụ trực tiếp từ Cài đặt chức vụ
   const cleanPositionList = useMemo(() => {
     const list = (positionsList || [])

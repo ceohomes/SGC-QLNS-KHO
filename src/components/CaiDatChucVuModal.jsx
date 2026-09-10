@@ -11,6 +11,7 @@ import {
   Info
 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
+import useEscapeKey from '../hooks/useEscapeKey'
 
 export const DEFAULT_CHUC_VU_LIST = [
   { id: 2, ten_chuc_vu: 'Thủ kho hiện trường' },
@@ -227,6 +228,12 @@ export default function CaiDatChucVuModal({ isOpen, onClose, onPositionsUpdated,
     setActionSuccess(`Đã xóa chức vụ "${pos.ten_chuc_vu}" thành công!`)
     setTimeout(() => setActionSuccess(''), 3000)
   }
+
+  // Nếu popup xác nhận xóa đang mở thì ESC đóng popup đó trước, chưa đóng modal chính
+  useEscapeKey(() => {
+    if (deletingPosition) setDeletingPosition(null)
+    else onClose()
+  }, isOpen)
 
   if (!isOpen) return null
 

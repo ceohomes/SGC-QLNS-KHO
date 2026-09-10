@@ -12,6 +12,7 @@ import {
   Loader2
 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
+import useEscapeKey from '../hooks/useEscapeKey'
 
 // Tên bảng + id dòng lưu Gemini API Key trên Supabase
 const SETTINGS_TABLE = 'sgc_cai_dat_api'
@@ -158,6 +159,8 @@ export default function CaiDatApiKeyModal({ isOpen, onClose }) {
       setTimeout(() => setSuccess(''), 4000)
     }
   }
+
+  useEscapeKey(onClose, isOpen)
 
   if (!isOpen) return null
 
