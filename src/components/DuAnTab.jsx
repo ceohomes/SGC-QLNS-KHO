@@ -1161,18 +1161,6 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
               </>
             )}
           </button>
-
-          <div style={{ position: 'relative', width: '280px' }}>
-            <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-            <input
-              type="text"
-              className="input"
-              placeholder="Lọc thủ kho trên toàn hệ thống..."
-              value={searchStorekeeper}
-              onChange={(e) => setSearchStorekeeper(e.target.value)}
-              style={{ width: '100%', paddingLeft: 36, fontSize: 13, height: 40, borderRadius: '10px', border: '1.5px solid #cbd5e1' }}
-            />
-          </div>
         </div>
       </div>
 
@@ -1198,6 +1186,19 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
                   placeholder="Tìm dự án, công trình nhanh..."
                   value={searchProject}
                   onChange={(e) => setSearchProject(e.target.value)}
+                  style={{ width: '100%', paddingLeft: 34, fontSize: 13, height: 38 }}
+                />
+              </div>
+
+              {/* Công cụ lọc thủ kho trên toàn hệ thống (đã chuyển từ thanh công cụ phía trên xuống đây) */}
+              <div style={{ position: 'relative' }}>
+                <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Lọc thủ kho trên toàn hệ thống..."
+                  value={searchStorekeeper}
+                  onChange={(e) => setSearchStorekeeper(e.target.value)}
                   style={{ width: '100%', paddingLeft: 34, fontSize: 13, height: 38 }}
                 />
               </div>

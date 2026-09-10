@@ -1122,76 +1122,85 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
         </div>
       )}
 
-      {/* Kanban Board Container */}
+      {/* Danh sách khối: bố cục 1 cột dọc, mỗi khối là 1 thẻ (card) như sheet Phân bổ theo dự án */}
       <div style={{
-        display: 'flex', gap: 16, overflowX: 'auto', flex: 1, paddingBottom: 16,
-        alignItems: 'flex-start', minHeight: 0
+        display: 'flex', flexDirection: 'column', gap: 16, flex: 1, overflowY: 'auto',
+        paddingBottom: 16, minHeight: 0
       }}>
         {blocks.map((block, idx) => {
           const isOver = dropOverBlockId === block.id
           const colors = getModernColors(block.color)
-          const filteredProjects = (block.projects || []).filter(p => 
+          const filteredProjects = (block.projects || []).filter(p =>
             !searchQuery || (p.name && p.name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
           )
           return (
             <div
               key={block.id}
+              className="card"
               onDragOver={(e) => handleProjDragOver(e, block.id)}
               onDrop={(e) => handleProjDrop(e, block.id)}
               style={{
-                width: 290, flexShrink: 0,
-                borderRadius: '24px', border: `2px solid ${colors.borderColor}`,
-                boxShadow: 'none',
-                display: 'flex', flexDirection: 'column', maxHeight: '100%',
+                borderLeft: `5px solid ${colors.color}`,
+                overflow: 'hidden',
                 transition: 'all 0.2s ease',
-                backgroundColor: colors.bgColor,
                 outline: isOver ? `2.5px solid ${colors.color}` : 'none',
-                transform: draggedBlockIndex === idx ? 'scale(0.98)' : 'none',
+                transform: draggedBlockIndex === idx ? 'scale(0.995)' : 'none',
                 opacity: draggedBlockIndex === idx ? 0.7 : 1
               }}
             >
-              {/* Column Header */}
-              <div 
+              {/* Card Header */}
+              <div
                 draggable
                 onDragStart={(e) => handleColumnDragStart(e, idx)}
                 onDragOver={(e) => handleColumnDragOver(e, idx)}
                 onDragEnd={handleColumnDragEnd}
                 style={{
-                  padding: '16px 18px',
-                  background: colors.bgColor, borderTopLeftRadius: '22px', borderTopRightRadius: '22px',
-                  cursor: 'grab', display: 'flex', flexDirection: 'column', gap: 8
+                  padding: '14px 20px',
+                  background: colors.bgColor,
+                  cursor: 'grab', display: 'flex', alignItems: 'center',
+                  justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+                  borderBottom: `1px solid ${colors.borderColor}`
                 }}
               >
-                {/* Header Top: Badge & Actions */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-                    <GripVertical size={14} style={{ color: colors.color, cursor: 'grab', opacity: 0.6, flexShrink: 0 }} />
-                    <span style={{
-                      background: colors.color, color: '#ffffff',
-                      fontFamily: '"Roboto", sans-serif',
-                      fontSize: 12, fontWeight: 800, padding: '3px 10px',
-                      borderRadius: '8px', letterSpacing: '0.02em',
-                      flexShrink: 0
-                    }}>
-                      {block.badge}
-                    </span>
-                    <h3 style={{
-                      margin: 0, fontSize: 13, fontWeight: 800, color: '#0050b3',
-                      fontFamily: '"Roboto", sans-serif',
-                      textAlign: 'left', textTransform: 'uppercase', lineHeight: 1.3,
-                      letterSpacing: '0.02em',
-                      flex: 1,
-                      minWidth: 0
-                    }}>
-                      {block.name}
-                    </h3>
-                  </div>
-                  
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flexWrap: 'wrap' }}>
+                  <GripVertical size={14} style={{ color: colors.color, cursor: 'grab', opacity: 0.6, flexShrink: 0 }} />
+                  <span style={{
+                    background: colors.color, color: '#ffffff',
+                    fontFamily: '"Roboto", sans-serif',
+                    fontSize: 12, fontWeight: 800, padding: '3px 10px',
+                    borderRadius: '8px', letterSpacing: '0.02em',
+                    flexShrink: 0
+                  }}>
+                    {block.badge}
+                  </span>
+                  <h3 style={{
+                    margin: 0, fontSize: 14, fontWeight: 800, color: '#0050b3',
+                    fontFamily: '"Roboto", sans-serif',
+                    textAlign: 'left', textTransform: 'uppercase', lineHeight: 1.3,
+                    letterSpacing: '0.02em'
+                  }}>
+                    {block.name}
+                  </h3>
+                  <span style={{
+                    fontSize: 11, fontFamily: '"Roboto", sans-serif',
+                    color: '#94a3b8', fontWeight: 700, letterSpacing: '0.02em'
+                  }}>
+                    {searchQuery ? `${filteredProjects.length}/${block.projects.length}` : block.projects.length} DỰ ÁN
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                  <span style={{
+                    fontSize: 11, color: '#cbd5e1', fontWeight: 500, fontStyle: 'italic',
+                    fontFamily: '"Roboto", sans-serif', whiteSpace: 'nowrap'
+                  }}>
+                    Kéo tiêu đề để đổi vị trí
+                  </span>
                   {/* Actions: Edit, Delete */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                    <button 
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <button
                       onClick={() => openEditBlock(block)}
-                      title="Sửa cột"
+                      title="Sửa khối"
                       style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: '#64748b' }}
                       onMouseOver={(e) => e.currentTarget.style.color = '#0050b3'}
                       onMouseOut={(e) => e.currentTarget.style.color = '#64748b'}
@@ -1199,9 +1208,9 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                       <Pencil size={13} />
                     </button>
                     {block.id !== 'unassigned' && (
-                      <button 
+                      <button
                         onClick={() => handleDeleteBlock(block.id)}
-                        title="Xóa cột"
+                        title="Xóa khối"
                         style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: '#64748b' }}
                         onMouseOver={(e) => e.currentTarget.style.color = '#ef4444'}
                         onMouseOut={(e) => e.currentTarget.style.color = '#64748b'}
@@ -1211,30 +1220,13 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                     )}
                   </div>
                 </div>
-
-                {/* Header Bottom: Stats */}
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 6, fontSize: 11,
-                  fontFamily: '"Roboto", sans-serif',
-                  color: '#94a3b8', fontWeight: 700, letterSpacing: '0.02em'
-                }}>
-                  <span>{searchQuery ? `${filteredProjects.length}/${block.projects.length}` : block.projects.length} DỰ ÁN</span>
-                  <span style={{ opacity: 0.5 }}>•</span>
-                  <span style={{ color: '#cbd5e1', fontWeight: 500, fontStyle: 'italic' }}>Kéo tiêu đề để đổi vị trí</span>
-                </div>
               </div>
 
-              {/* Separator line with gaps */}
-              <div style={{ height: '1.5px', backgroundColor: colors.borderColor, margin: '0 18px', opacity: 0.8 }} />
-
-              {/* Column Body: Project List */}
-              <div style={{
-                padding: '14px', overflowY: 'auto', display: 'flex',
-                flexDirection: 'column', gap: 10, flex: 1, minHeight: 120
-              }}>
+              {/* Card Body: lưới các thẻ dự án */}
+              <div style={{ padding: 16 }}>
                 {filteredProjects.length === 0 ? (
                   <div style={{
-                    padding: '36px 12px', display: 'flex', alignItems: 'center',
+                    padding: '28px 12px', display: 'flex', alignItems: 'center',
                     justifyContent: 'center', color: '#94a3b8', fontSize: 13,
                     fontFamily: '"Roboto", sans-serif',
                     fontWeight: 600, background: 'transparent', textAlign: 'center'
@@ -1242,82 +1234,86 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                     {searchQuery ? 'Không tìm thấy dự án phù hợp' : 'Kéo dự án vào đây'}
                   </div>
                 ) : (
-                  filteredProjects.map((proj) => {
-                    const originalIndex = block.projects.findIndex(p => p.id === proj.id)
-                    return (
-                      <div
-                        key={proj.id}
-                        draggable
-                        onDragStart={(e) => handleProjDragStart(e, block.id, originalIndex, proj)}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => handleProjDrop(e, block.id, originalIndex)}
-                        style={{
-                          padding: '11px 14px', background: '#ffffff', borderRadius: '12px',
-                          border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center',
-                          justifyContent: 'space-between', cursor: 'grab',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.01)',
-                          transition: 'all 0.15s ease'
-                        }}
-                        onMouseOver={(e) => {
-                          e.currentTarget.style.borderColor = colors.borderColor
-                          e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.04)'
-                        }}
-                        onMouseOut={(e) => {
-                          e.currentTarget.style.borderColor = '#e2e8f0'
-                          e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.01)'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-                          <GripVertical size={13} style={{ color: '#94a3b8', cursor: 'grab', flexShrink: 0, opacity: 0.7 }} />
-                          <span style={{
-                            background: colors.color, color: '#ffffff',
-                            fontFamily: '"Roboto", sans-serif',
-                            fontSize: 11, fontWeight: 800, padding: '2px 7px',
-                            borderRadius: '6px', flexShrink: 0
-                          }}>
-                            {block.badge}
-                          </span>
-                          <strong style={{
-                            fontFamily: '"Roboto", sans-serif',
-                            fontSize: 12.5, color: '#334155', fontWeight: 600,
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                            textAlign: 'left'
-                          }}>
-                            {proj.name}
-                          </strong>
-                        </div>
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 10
+                  }}>
+                    {filteredProjects.map((proj) => {
+                      const originalIndex = block.projects.findIndex(p => p.id === proj.id)
+                      return (
+                        <div
+                          key={proj.id}
+                          draggable
+                          onDragStart={(e) => handleProjDragStart(e, block.id, originalIndex, proj)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => handleProjDrop(e, block.id, originalIndex)}
+                          style={{
+                            padding: '11px 14px', background: '#ffffff', borderRadius: '12px',
+                            border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center',
+                            justifyContent: 'space-between', cursor: 'grab',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.01)',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.borderColor = colors.borderColor
+                            e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.04)'
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.borderColor = '#e2e8f0'
+                            e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.01)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                            <GripVertical size={13} style={{ color: '#94a3b8', cursor: 'grab', flexShrink: 0, opacity: 0.7 }} />
+                            <span style={{
+                              background: colors.color, color: '#ffffff',
+                              fontFamily: '"Roboto", sans-serif',
+                              fontSize: 11, fontWeight: 800, padding: '2px 7px',
+                              borderRadius: '6px', flexShrink: 0
+                            }}>
+                              {block.badge}
+                            </span>
+                            <strong style={{
+                              fontFamily: '"Roboto", sans-serif',
+                              fontSize: 12.5, color: '#334155', fontWeight: 600,
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                              textAlign: 'left'
+                            }}>
+                              {proj.name}
+                            </strong>
+                          </div>
 
-                        {/* Project actions */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginLeft: 4, flexShrink: 0 }}>
-                          <button
-                            onClick={() => openEditProject(block.id, originalIndex, proj)}
-                            style={{ background: 'none', border: 'none', padding: 2, cursor: 'pointer', color: '#94a3b8' }}
-                            onMouseOver={(e) => e.currentTarget.style.color = '#0050b3'}
-                            onMouseOut={(e) => e.currentTarget.style.color = '#94a3b8'}
-                          >
-                            <Pencil size={11} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteProject(block.id, originalIndex)}
-                            style={{ background: 'none', border: 'none', padding: 2, cursor: 'pointer', color: '#94a3b8' }}
-                            onMouseOver={(e) => e.currentTarget.style.color = '#ef4444'}
-                            onMouseOut={(e) => e.currentTarget.style.color = '#94a3b8'}
-                          >
-                            <Trash2 size={11} />
-                          </button>
+                          {/* Project actions */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginLeft: 4, flexShrink: 0 }}>
+                            <button
+                              onClick={() => openEditProject(block.id, originalIndex, proj)}
+                              style={{ background: 'none', border: 'none', padding: 2, cursor: 'pointer', color: '#94a3b8' }}
+                              onMouseOver={(e) => e.currentTarget.style.color = '#0050b3'}
+                              onMouseOut={(e) => e.currentTarget.style.color = '#94a3b8'}
+                            >
+                              <Pencil size={11} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProject(block.id, originalIndex)}
+                              style={{ background: 'none', border: 'none', padding: 2, cursor: 'pointer', color: '#94a3b8' }}
+                              onMouseOver={(e) => e.currentTarget.style.color = '#ef4444'}
+                              onMouseOut={(e) => e.currentTarget.style.color = '#94a3b8'}
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })
+                      )
+                    })}
+                  </div>
                 )}
               </div>
 
-              {/* Column Footer */}
-              <div style={{ padding: '8px 18px 18px', background: 'transparent' }}>
+              {/* Card Footer */}
+              <div style={{ padding: '4px 20px 16px', background: 'transparent' }}>
                 <button
                   onClick={() => openAddProject(block.id)}
                   style={{
-                    width: '100%', padding: '8px 0', background: 'none',
+                    padding: '8px 0', background: 'none',
                     border: 'none', color: '#475569',
                     fontSize: 13, fontWeight: 700, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 6,
@@ -1338,13 +1334,13 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
           )
         })}
 
-        {/* Add New Block Button Card */}
+        {/* Thêm khối mới: dòng đầy đủ chiều rộng */}
         <button
           onClick={openAddBlock}
           style={{
-            width: 290, height: 120, flexShrink: 0, background: '#ffffff',
-            border: '2px dashed #cbd5e1', borderRadius: '24px', cursor: 'pointer',
-            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            width: '100%', padding: '16px', background: '#ffffff',
+            border: '2px dashed #cbd5e1', borderRadius: 'var(--radius-lg)', cursor: 'pointer',
+            display: 'flex', alignItems: 'center',
             justifyContent: 'center', gap: 8, transition: 'all 0.2s',
             boxShadow: 'none'
           }}

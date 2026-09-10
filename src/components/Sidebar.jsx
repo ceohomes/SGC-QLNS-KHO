@@ -12,7 +12,7 @@ const NAV_GROUPS = [
     label: 'Nhân sự thủ kho',
     items: [
       { id: 'tuyendung', label: 'Tuyển dụng', icon: <UserPlus /> },
-      { id: 'duan', label: 'Phân bổ theo dự án', icon: <Building2 /> },
+      { id: 'duan', label: 'Danh sách theo dự án', icon: <Building2 /> },
       { id: 'thongtinduan', label: 'Thông tin dự án', icon: <Building /> },
       { id: 'dinhbien', label: 'Định biên nhân sự', icon: <ClipboardList /> },
     ]
