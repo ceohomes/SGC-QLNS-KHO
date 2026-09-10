@@ -6,7 +6,7 @@ import {
   Check, X, ChevronRight, UserCheck, ShieldCheck, FileSpreadsheet,
   Layers, Building, HelpCircle, ExternalLink, Users, Target, XCircle,
   ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, RotateCw, FileCheck,
-  Database, Code, Copy, Save, ChevronDown, Lock, KeyRound
+  Database, Code, Copy, Save, ChevronDown, Lock, KeyRound, Settings
 } from 'lucide-react'
 import ExcelJS from 'exceljs'
 import CustomAlert from './CustomAlert.jsx'
@@ -883,7 +883,7 @@ export default function TuyenDungTab({
             }}
             title="Cài đặt danh mục chức vụ, tạo mới, chỉnh sửa và đồng bộ trên Supabase"
           >
-            <Briefcase size={16} style={{ color: '#0f58a7' }} />
+            <Settings size={16} style={{ color: '#0f58a7' }} />
             <span>Cài đặt Chức vụ</span>
           </button>
 

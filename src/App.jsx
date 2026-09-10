@@ -2,7 +2,6 @@ import React, { useEffect, useState, useMemo } from 'react'
 import Header from './components/Header.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import DashboardTab from './components/DashboardTab.jsx'
-import DanhSachTab from './components/DanhSachTab.jsx'
 import ThongTinDuAnTab from './components/ThongTinDuAnTab.jsx'
 import DuAnTab from './components/DuAnTab.jsx'
 import DinhBienTab from './components/DinhBienTab.jsx'
@@ -24,7 +23,6 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [dbStatus, setDbStatus] = useState('loading') // 'loading' | 'connected' | 'empty' | 'error'
   const [isPinned, setIsPinned] = useState(false)
-  const [initialSearch, setInitialSearch] = useState('')
   const [initialDuAnFilter, setInitialDuAnFilter] = useState('')
   const [initialDuAnSearch, setInitialDuAnSearch] = useState('')
 
@@ -186,15 +184,15 @@ export default function App() {
       // Tải lại dữ liệu chính thức
       await loadData()
 
-      // Tự động chuyển ngay sang tab Danh sách thủ kho và lọc theo Mã nhân viên vừa tuyển
-      setInitialSearch(officialMaNV)
-      setTab('danhsach')
+      // Tự động chuyển ngay sang sheet Phân bổ dự án và lọc theo Mã nhân viên vừa tuyển
+      setInitialDuAnSearch(officialMaNV)
+      setTab('duan')
 
     } catch (err) {
       console.error('Lỗi khi thực hiện lưu vào Danh sách thủ kho:', err)
       // Vẫn điều hướng để người dùng thấy
-      setInitialSearch(officialMaNV)
-      setTab('danhsach')
+      setInitialDuAnSearch(officialMaNV)
+      setTab('duan')
     }
   }
 
@@ -207,8 +205,7 @@ export default function App() {
   const counts = useMemo(() => {
     return {
       dashboard: 0,
-      tuyendung: recruitmentCount,
-      danhsach: data.length
+      tuyendung: recruitmentCount
     }
   }, [data, recruitmentCount])
 
@@ -272,18 +269,6 @@ export default function App() {
                   onReload={loadData}
                 />
               )}
-              {tab === 'danhsach' && (
-                <DanhSachTab 
-                  data={data} 
-                  onUpdateData={setData} 
-                  dbStatus={dbStatus} 
-                  onReload={loadData} 
-                  initialDuAnFilter={initialDuAnFilter}
-                  setInitialDuAnFilter={setInitialDuAnFilter}
-                  initialSearch={initialSearch}
-                  setInitialSearch={setInitialSearch}
-                />
-              )}
               {tab === 'thongtinduan' && <ThongTinDuAnTab data={data} onReload={loadData} />}
               {tab === 'duan' && (
                 <DuAnTab
@@ -292,6 +277,8 @@ export default function App() {
                   onReload={loadData}
                   initialSearch={initialDuAnSearch}
                   setInitialSearch={setInitialDuAnSearch}
+                  initialProjectFilter={initialDuAnFilter}
+                  setInitialProjectFilter={setInitialDuAnFilter}
                 />
               )}
               {tab === 'dinhbien' && <DinhBienTab data={data} onReload={loadData} />}

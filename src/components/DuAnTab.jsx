@@ -11,7 +11,7 @@ import { exportThuKhoExcel } from '../excelExporter.js'
 import CustomAlert from './CustomAlert'
 import EditModal from './EditModal.jsx'
 
-export default function DuAnTab({ data = [], onUpdateData, onReload, initialSearch, setInitialSearch }) {
+export default function DuAnTab({ data = [], onUpdateData, onReload, initialSearch, setInitialSearch, initialProjectFilter, setInitialProjectFilter }) {
   const [selectedProjectId, setSelectedProjectId] = useState('UNASSIGNED') // Selected source project
   const [viewMode, setViewMode] = useState('split') // 'split' | 'kanban'
   const [selectedBlockFilter, setSelectedBlockFilter] = useState('ALL')
@@ -244,6 +244,19 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
     })
     return list
   }, [blocks])
+
+  // Nhận yêu cầu chọn sẵn một dự án cụ thể từ nơi khác điều hướng tới
+  // (VD: bấm vào dự án ở Dashboard tổng quan để xem ngay danh sách thủ kho của dự án đó)
+  useEffect(() => {
+    if (initialProjectFilter && allProjects.length > 0) {
+      const clean = initialProjectFilter.trim().toLowerCase()
+      const found = allProjects.find(p => p.name.trim().toLowerCase() === clean)
+      if (found) {
+        setSelectedProjectId(found.id)
+      }
+      if (setInitialProjectFilter) setInitialProjectFilter('')
+    }
+  }, [initialProjectFilter, allProjects, setInitialProjectFilter])
 
   // Filter storekeepers globally by search text
   const filteredStorekeepers = useMemo(() => {
