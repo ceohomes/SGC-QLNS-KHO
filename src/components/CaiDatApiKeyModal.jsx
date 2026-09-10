@@ -11,14 +11,21 @@ import {
   Sparkles,
   Loader2
 } from 'lucide-react'
+import { supabase } from '../supabaseClient'
+
+// Tên bảng + id dòng lưu Gemini API Key trên Supabase
+const SETTINGS_TABLE = 'sgc_cai_dat_api'
+const GEMINI_KEY_ID = 'GEMINI_API_KEY'
 
 // SQL schema for Supabase live persistence of the Gemini API Key.
 // Chạy đoạn mã này trong SQL Editor của Supabase trước khi dùng tính năng "Cài đặt API Key".
+// Lưu ý: bảng này KHÔNG bật Row Level Security (giống các bảng cấu hình khác của app như
+// sgc_cai_dat_chuc_vu) để giao diện có thể đọc/ghi trực tiếp bằng Supabase anon key mà
+// không cần chạy thêm server. Nếu bạn đã lỡ chạy phiên bản SQL cũ có bật RLS, hãy chạy lại
+// đoạn dưới đây — dòng ALTER TABLE ... DISABLE ROW LEVEL SECURITY sẽ tắt nó đi.
 export const SQL_CODE_CAI_DAT_API = `-- -------------------------------------------------------------
 -- BẢNG LƯU TRỮ GEMINI API KEY (sgc_cai_dat_api)
 -- Vui lòng chạy đoạn mã này trong SQL Editor của Supabase!
--- Bảng này CHỈ được đọc/ghi bởi server (Service Role Key), KHÔNG cấp quyền
--- cho anon/authenticated key để đảm bảo API Key không bị lộ ra trình duyệt.
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS sgc_cai_dat_api (
     id TEXT PRIMARY KEY,        -- Tên biến, VD: 'GEMINI_API_KEY'
@@ -27,9 +34,10 @@ CREATE TABLE IF NOT EXISTS sgc_cai_dat_api (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Bật Row Level Security và KHÔNG tạo policy nào cho anon/authenticated
--- => chỉ Service Role Key (dùng ở server) mới đọc/ghi được bảng này.
-ALTER TABLE sgc_cai_dat_api ENABLE ROW LEVEL SECURITY;
+-- Tắt Row Level Security để giao diện (dùng Supabase anon key, giống các bảng
+-- cấu hình khác trong app như sgc_cai_dat_chuc_vu) đọc/ghi trực tiếp được, không
+-- cần server đứng giữa. Nếu bảng đã tồn tại và đang bật RLS, dòng này sẽ tắt nó đi.
+ALTER TABLE sgc_cai_dat_api DISABLE ROW LEVEL SECURITY;
 
 -- Tự động cập nhật updated_at mỗi khi có thay đổi
 CREATE OR REPLACE FUNCTION sgc_set_updated_at()
@@ -46,10 +54,17 @@ BEFORE UPDATE ON sgc_cai_dat_api
 FOR EACH ROW EXECUTE FUNCTION sgc_set_updated_at();
 `
 
+function maskSecret(v) {
+  if (!v) return ''
+  if (v.length <= 8) return '••••••••'
+  return `${v.slice(0, 4)}••••${v.slice(-4)}`
+}
+
 export default function CaiDatApiKeyModal({ isOpen, onClose }) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [status, setStatus] = useState(null) // dữ liệu trả về từ GET /api/settings
+  const [configured, setConfigured] = useState(false)
+  const [masked, setMasked] = useState('')
   const [value, setValue] = useState('')
   const [revealed, setRevealed] = useState(false)
   const [error, setError] = useState('')
@@ -69,13 +84,25 @@ export default function CaiDatApiKeyModal({ isOpen, onClose }) {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch('/api/settings')
-      if (!res.ok) throw new Error('Không thể tải trạng thái cấu hình từ server')
-      const data = await res.json()
-      setStatus(data)
+      const { data, error: dbError } = await supabase
+        .from(SETTINGS_TABLE)
+        .select('gia_tri')
+        .eq('id', GEMINI_KEY_ID)
+        .maybeSingle()
+
+      if (dbError) throw dbError
+
+      const currentValue = data?.gia_tri || ''
+      setConfigured(Boolean(currentValue))
+      setMasked(maskSecret(currentValue))
     } catch (err) {
-      console.warn('Lỗi tải cấu hình API:', err)
-      setError('Không thể kết nối tới server để tải trạng thái cấu hình. Vui lòng kiểm tra server đang chạy.')
+      console.warn('Lỗi tải trạng thái Gemini API Key:', err)
+      const msg = (err?.message || '').toLowerCase()
+      if (msg.includes('does not exist') || msg.includes('could not find the table')) {
+        setError(`Chưa có bảng "${SETTINGS_TABLE}" trên Supabase. Vui lòng chạy câu lệnh SQL bên dưới trước.`)
+      } else {
+        setError('Không thể kết nối Supabase để tải trạng thái cấu hình. Vui lòng kiểm tra lại kết nối Supabase.')
+      }
     } finally {
       setLoading(false)
     }
@@ -93,20 +120,28 @@ export default function CaiDatApiKeyModal({ isOpen, onClose }) {
 
     setSaving(true)
     try {
-      const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ geminiApiKey: value.trim() })
-      })
-      const data = await res.json()
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Lưu Gemini API Key thất bại')
-      }
-      setSuccess('Đã lưu Gemini API Key thành công! Hệ thống sẽ áp dụng ngay cho lượt quét CV tiếp theo.')
+      const { error: dbError } = await supabase
+        .from(SETTINGS_TABLE)
+        .upsert(
+          { id: GEMINI_KEY_ID, gia_tri: value.trim(), updated_at: new Date().toISOString() },
+          { onConflict: 'id' }
+        )
+
+      if (dbError) throw dbError
+
+      setSuccess('Đã lưu Gemini API Key thành công lên Supabase!')
       setValue('')
       await loadStatus()
     } catch (err) {
-      setError(err.message || 'Lưu Gemini API Key thất bại')
+      console.error('Lỗi khi lưu Gemini API Key:', err)
+      const msg = (err?.message || '').toLowerCase()
+      if (msg.includes('does not exist') || msg.includes('could not find the table')) {
+        setError(`Chưa có bảng "${SETTINGS_TABLE}" trên Supabase. Vui lòng chạy câu lệnh SQL bên dưới rồi thử lưu lại.`)
+      } else if (msg.includes('row-level security') || msg.includes('permission denied')) {
+        setError('Supabase đang chặn ghi dữ liệu (Row Level Security). Vui lòng chạy lại câu lệnh SQL bên dưới để tắt RLS cho bảng này.')
+      } else {
+        setError(err.message || 'Lưu Gemini API Key thất bại')
+      }
     } finally {
       setSaving(false)
       setTimeout(() => setSuccess(''), 4000)
@@ -114,8 +149,6 @@ export default function CaiDatApiKeyModal({ isOpen, onClose }) {
   }
 
   if (!isOpen) return null
-
-  const geminiStatus = status?.geminiApiKey
 
   return (
     <div style={{
@@ -201,21 +234,6 @@ export default function CaiDatApiKeyModal({ isOpen, onClose }) {
           </div>
         )}
 
-        {status && !status.storageEnabled && (
-          <div style={{
-            margin: '12px 20px 0', padding: '10px 14px', background: '#fffbeb',
-            border: '1px solid #f59e0b', borderRadius: 8, color: '#92400e',
-            fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'flex-start', gap: 8
-          }}>
-            <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-            <span>
-              Server chưa cấu hình biến môi trường <code>SUPABASE_SERVICE_ROLE_KEY</code> nên chưa thể lưu Gemini API Key qua giao diện này.
-              Hãy chạy câu lệnh SQL bên dưới để tạo bảng, sau đó thêm <code>SUPABASE_URL</code> và <code>SUPABASE_SERVICE_ROLE_KEY</code>
-              (lấy trong Supabase → Project Settings → API) vào file <code>.env</code> của server rồi khởi động lại.
-            </span>
-          </div>
-        )}
-
         {/* Content */}
         <form onSubmit={handleSave} style={{ padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
           {loading ? (
@@ -231,15 +249,13 @@ export default function CaiDatApiKeyModal({ isOpen, onClose }) {
                   <span>Gemini API Key</span>
                 </label>
 
-                {geminiStatus && (
-                  <span style={{
-                    fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
-                    background: geminiStatus.configured ? '#dcfce7' : '#fee2e2',
-                    color: geminiStatus.configured ? '#15803d' : '#b91c1c'
-                  }}>
-                    {geminiStatus.configured ? `Đã cấu hình (${geminiStatus.masked})` : 'Chưa cấu hình'}
-                  </span>
-                )}
+                <span style={{
+                  fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+                  background: configured ? '#dcfce7' : '#fee2e2',
+                  color: configured ? '#15803d' : '#b91c1c'
+                }}>
+                  {configured ? `Đã cấu hình (${masked})` : 'Chưa cấu hình'}
+                </span>
               </div>
 
               <div style={{ position: 'relative' }}>
@@ -248,7 +264,7 @@ export default function CaiDatApiKeyModal({ isOpen, onClose }) {
                   className="input"
                   value={value}
                   onChange={e => setValue(e.target.value)}
-                  placeholder={geminiStatus?.configured ? 'Để trống nếu không muốn đổi giá trị hiện tại' : 'AIza...'}
+                  placeholder={configured ? 'Để trống nếu không muốn đổi giá trị hiện tại' : 'AIza...'}
                   style={{ width: '100%', height: 40, borderRadius: 8, fontSize: 13.5, fontWeight: 600, paddingRight: 40, boxSizing: 'border-box' }}
                   autoComplete="off"
                   autoFocus
@@ -300,7 +316,7 @@ export default function CaiDatApiKeyModal({ isOpen, onClose }) {
         }}>
           <div style={{ fontSize: 11.5, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
             <Info size={13} />
-            <span>Giá trị được lưu trực tiếp trên server (Supabase), không lưu ở trình duyệt.</span>
+            <span>Lưu trực tiếp vào Supabase, không lưu ở trình duyệt.</span>
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>

@@ -17,24 +17,18 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 // ---------------------------------------------------------------
 // Cho phép cấu hình Gemini API Key (dùng để AI quét CV) ngay trên giao diện
 // (nút "Cài đặt API Key") thay vì phải sửa file .env và deploy lại.
-// Giá trị được lưu trong bảng `sgc_cai_dat_api` trên Supabase và CHỈ được
-// đọc/ghi bởi server bằng SUPABASE_SERVICE_ROLE_KEY (secret riêng, không
-// bao giờ đưa vào bundle frontend). Nếu chưa cấu hình biến này, hệ thống
-// vẫn hoạt động bình thường và chỉ dùng biến môi trường GEMINI_API_KEY trong .env như cũ.
+// Giá trị được lưu trong bảng `sgc_cai_dat_api` trên Supabase. Giao diện (frontend)
+// ghi/đọc bảng này TRỰC TIẾP bằng Supabase anon key (giống các bảng cấu hình khác
+// của app như sgc_cai_dat_chuc_vu) — vì trên Cloudflare Pages KHÔNG có server Node
+// nào chạy nền để phục vụ các route /api/* bên dưới. Các route /api/settings ở đây
+// chỉ dùng khi server.ts thực sự được host ở nơi có Node server (chạy `npm run dev`,
+// `npm start`, hoặc một dịch vụ Node riêng) — ví dụ để /api/parse-cv đọc được Gemini
+// API Key mà không cần đưa vào biến môi trường.
 // Các key khác (GitHub Token, repo, branch, thư mục CV) KHÔNG thuộc tính năng này,
 // vẫn cấu hình cố định qua biến môi trường .env / Cloudflare như trước.
-const SUPABASE_ADMIN_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-const supabaseAdmin = (SUPABASE_ADMIN_URL && SUPABASE_SERVICE_ROLE_KEY)
-  ? createClient(SUPABASE_ADMIN_URL, SUPABASE_SERVICE_ROLE_KEY)
-  : null;
-
-if (!supabaseAdmin) {
-  console.warn(
-    "[Cai dat API Key] Chưa cấu hình SUPABASE_SERVICE_ROLE_KEY -> tính năng lưu API Key qua giao diện sẽ bị vô hiệu hóa. " +
-    "Hệ thống vẫn dùng bình thường các biến môi trường (.env) như trước."
-  );
-}
+const SUPABASE_URL_FOR_SETTINGS = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://vwwgihnumdwmihdfqudx.supabase.co";
+const SUPABASE_ANON_KEY_FOR_SETTINGS = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3d2dpaG51bWR3bWloZGZxdWR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0MDk0MDMsImV4cCI6MjA5ODk4NTQwM30.qJbHbW0AIE25AHEIEPDpF3voZfYaRSEpVCnSwHArpmw";
+const supabaseSettings = createClient(SUPABASE_URL_FOR_SETTINGS, SUPABASE_ANON_KEY_FOR_SETTINGS);
 
 const SETTINGS_TABLE = "sgc_cai_dat_api";
 const settingsCache = new Map<string, { value: string; expiresAt: number }>();
@@ -47,10 +41,8 @@ async function getSetting(key: string): Promise<string> {
   const cached = settingsCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
-  if (!supabaseAdmin) return "";
-
   try {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabaseSettings
       .from(SETTINGS_TABLE)
       .select("gia_tri")
       .eq("id", key)
@@ -68,12 +60,9 @@ async function getSetting(key: string): Promise<string> {
   }
 }
 
-// Ghi một giá trị cấu hình vào Supabase (yêu cầu đã cấu hình SUPABASE_SERVICE_ROLE_KEY).
+// Ghi một giá trị cấu hình vào Supabase.
 async function setSetting(key: string, value: string): Promise<void> {
-  if (!supabaseAdmin) {
-    throw new Error("Chưa cấu hình SUPABASE_SERVICE_ROLE_KEY phía server nên không thể lưu API Key vào Supabase.");
-  }
-  const { error } = await supabaseAdmin
+  const { error } = await supabaseSettings
     .from(SETTINGS_TABLE)
     .upsert({ id: key, gia_tri: value, updated_at: new Date().toISOString() }, { onConflict: "id" });
   if (error) throw new Error(error.message);
@@ -92,19 +81,17 @@ app.get("/api/health", async (_req, res) => {
   res.json({
     status: "ok",
     hasGeminiKey: Boolean(geminiKey),
-    apiKeySettingsStorageEnabled: Boolean(supabaseAdmin),
     time: new Date().toISOString()
   });
 });
 
 // Lấy trạng thái cấu hình Gemini API Key hiện tại (KHÔNG trả về giá trị thật,
 // chỉ trả về đã cấu hình hay chưa + vài ký tự đầu/cuối đã che dấu để đối chiếu).
+// Lưu ý: trên Cloudflare Pages route này không chạy — giao diện đọc thẳng từ Supabase.
 app.get("/api/settings", async (_req, res) => {
   try {
     const geminiKey = await getSetting("GEMINI_API_KEY");
-
     res.json({
-      storageEnabled: Boolean(supabaseAdmin),
       geminiApiKey: { configured: Boolean(geminiKey), masked: maskSecret(geminiKey) }
     });
   } catch (err: any) {
@@ -112,17 +99,10 @@ app.get("/api/settings", async (_req, res) => {
   }
 });
 
-// Lưu / cập nhật Gemini API Key. Chỉ ghi vào Supabase (qua Service Role Key),
-// không bao giờ log giá trị bí mật ra console.
+// Lưu / cập nhật Gemini API Key vào Supabase.
+// Lưu ý: trên Cloudflare Pages route này không chạy — giao diện ghi thẳng vào Supabase.
 app.post("/api/settings", async (req, res) => {
   try {
-    if (!supabaseAdmin) {
-      return res.status(400).json({
-        success: false,
-        error: "Server chưa cấu hình SUPABASE_SERVICE_ROLE_KEY nên không thể lưu Gemini API Key. Vui lòng thêm biến môi trường này rồi khởi động lại server."
-      });
-    }
-
     const { geminiApiKey } = req.body || {};
 
     if (typeof geminiApiKey !== "string" || !geminiApiKey.trim()) {
