@@ -3126,59 +3126,6 @@ function CandidateDetailModal({
                     </span>
                   )}
 
-                  {onEdit && (
-                    <button
-                      type="button"
-                      onClick={() => onEdit(candidate)}
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                        background: '#ffffff', color: '#6d28d9',
-                        border: '1px solid #c4b5fd', borderRadius: 8, padding: '9px 16px',
-                        fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
-                        boxShadow: '0 1px 2px rgba(109, 40, 217, 0.08)',
-                        transition: 'all 0.15s ease'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#f5f3ff'
-                        e.currentTarget.style.borderColor = '#8b5cf6'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = '#ffffff'
-                        e.currentTarget.style.borderColor = '#c4b5fd'
-                      }}
-                      title="Chỉnh sửa hồ sơ ứng viên"
-                    >
-                      <Edit3 size={14} color="#7c3aed" />
-                      <span>Chỉnh sửa hồ sơ</span>
-                    </button>
-                  )}
-                  {onDelete && (
-                    <button
-                      type="button"
-                      onClick={() => onDelete(candidate)}
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 7,
-                        padding: '9px 16px', borderRadius: 8,
-                        border: '1px solid #fecaca',
-                        background: '#fef2f2',
-                        color: '#dc2626', fontWeight: 700, cursor: 'pointer',
-                        fontSize: 13.5, whiteSpace: 'nowrap',
-                        transition: 'all 0.15s ease'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#fee2e2'
-                        e.currentTarget.style.borderColor = '#fca5a5'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = '#fef2f2'
-                        e.currentTarget.style.borderColor = '#fecaca'
-                      }}
-                      title="Xóa hồ sơ ứng viên này"
-                    >
-                      <Trash2 size={15} />
-                      <span>Xóa hồ sơ</span>
-                    </button>
-                  )}
                 </div>
               </div>
 
@@ -3199,25 +3146,82 @@ function CandidateDetailModal({
                       </div>
                     </div>
                   </div>
-                  <button
-                    onClick={() => {
-                      onClose()
-                      if (onNavigateToStorekeeper) onNavigateToStorekeeper(candidate.maNV)
-                    }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      padding: '8px 14px', borderRadius: 8, background: '#059669',
-                      color: '#ffffff', border: 'none', fontWeight: 700, fontSize: 12.5, cursor: 'pointer'
-                    }}
-                  >
-                    <span>Xem tại DS theo dự án</span>
-                    <ExternalLink size={14} />
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    {onEdit && (
+                      <button
+                        type="button"
+                        onClick={() => onEdit(candidate)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          background: '#ffffff', color: '#6d28d9',
+                          border: '1px solid #c4b5fd', borderRadius: 8, padding: '9px 16px',
+                          fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
+                          boxShadow: '0 1px 2px rgba(109, 40, 217, 0.08)',
+                          transition: 'all 0.15s ease', whiteSpace: 'nowrap'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#f5f3ff'
+                          e.currentTarget.style.borderColor = '#8b5cf6'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = '#ffffff'
+                          e.currentTarget.style.borderColor = '#c4b5fd'
+                        }}
+                        title="Chỉnh sửa hồ sơ ứng viên"
+                      >
+                        <Edit3 size={14} color="#7c3aed" />
+                        <span>Chỉnh sửa hồ sơ</span>
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button
+                        type="button"
+                        onClick={() => onDelete(candidate)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 7,
+                          padding: '9px 16px', borderRadius: 8,
+                          border: '1px solid #fecaca',
+                          background: '#fef2f2',
+                          color: '#dc2626', fontWeight: 700, cursor: 'pointer',
+                          fontSize: 13.5, whiteSpace: 'nowrap',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#fee2e2'
+                          e.currentTarget.style.borderColor = '#fca5a5'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = '#fef2f2'
+                          e.currentTarget.style.borderColor = '#fecaca'
+                        }}
+                        title="Xóa hồ sơ ứng viên này"
+                      >
+                        <Trash2 size={15} />
+                        <span>Xóa hồ sơ</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        onClose()
+                        if (onNavigateToStorekeeper) onNavigateToStorekeeper(candidate.maNV)
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '8px 14px', borderRadius: 8, background: '#059669',
+                        color: '#ffffff', border: 'none', fontWeight: 700, fontSize: 12.5, cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      <span>Xem tại DS theo dự án</span>
+                      <ExternalLink size={14} />
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '12px 16px', background: '#eff6ff', borderRadius: 10, border: '1px solid #bfdbfe'
+                  padding: '12px 16px', background: '#eff6ff', borderRadius: 10, border: '1px solid #bfdbfe',
+                  flexWrap: 'wrap', gap: 12
                 }}>
                   <div>
                     <div style={{ fontSize: 13.5, fontWeight: 800, color: '#1e3a8a' }}>
@@ -3227,18 +3231,74 @@ function CandidateDetailModal({
                       Điền mã nhân viên để tự động bổ nhiệm và chuyển sang sheet Danh sách thủ kho.
                     </div>
                   </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    {onEdit && (
+                      <button
+                        type="button"
+                        onClick={() => onEdit(candidate)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          background: '#ffffff', color: '#6d28d9',
+                          border: '1px solid #c4b5fd', borderRadius: 8, padding: '9px 16px',
+                          fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
+                          boxShadow: '0 1px 2px rgba(109, 40, 217, 0.08)',
+                          transition: 'all 0.15s ease', whiteSpace: 'nowrap'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#f5f3ff'
+                          e.currentTarget.style.borderColor = '#8b5cf6'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = '#ffffff'
+                          e.currentTarget.style.borderColor = '#c4b5fd'
+                        }}
+                        title="Chỉnh sửa hồ sơ ứng viên"
+                      >
+                        <Edit3 size={14} color="#7c3aed" />
+                        <span>Chỉnh sửa hồ sơ</span>
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button
+                        type="button"
+                        onClick={() => onDelete(candidate)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 7,
+                          padding: '9px 16px', borderRadius: 8,
+                          border: '1px solid #fecaca',
+                          background: '#fef2f2',
+                          color: '#dc2626', fontWeight: 700, cursor: 'pointer',
+                          fontSize: 13.5, whiteSpace: 'nowrap',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#fee2e2'
+                          e.currentTarget.style.borderColor = '#fca5a5'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = '#fef2f2'
+                          e.currentTarget.style.borderColor = '#fecaca'
+                        }}
+                        title="Xóa hồ sơ ứng viên này"
+                      >
+                        <Trash2 size={15} />
+                        <span>Xóa hồ sơ</span>
+                      </button>
+                    )}
                   <button
                     onClick={onStartRecruit}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 6,
                       padding: '9px 18px', borderRadius: 8, background: '#2563eb',
                       color: '#ffffff', border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer',
-                      boxShadow: '0 2px 4px rgba(37, 99, 235, 0.25)'
+                      boxShadow: '0 2px 4px rgba(37, 99, 235, 0.25)',
+                      whiteSpace: 'nowrap'
                     }}
                   >
                     <UserCheck size={16} />
                     <span>Cấp mã & Tuyển dụng</span>
                   </button>
+                  </div>
                 </div>
               )}
             </div>
