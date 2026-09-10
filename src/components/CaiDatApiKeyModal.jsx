@@ -39,6 +39,11 @@ CREATE TABLE IF NOT EXISTS sgc_cai_dat_api (
 -- cần server đứng giữa. Nếu bảng đã tồn tại và đang bật RLS, dòng này sẽ tắt nó đi.
 ALTER TABLE sgc_cai_dat_api DISABLE ROW LEVEL SECURITY;
 
+-- QUAN TRỌNG: Tắt RLS thôi CHƯA đủ — bảng tạo bằng SQL Editor mặc định KHÔNG cấp
+-- quyền đọc/ghi cho vai trò anon/authenticated (khác với tạo bảng bằng Table Editor).
+-- Nếu thiếu dòng này sẽ bị lỗi "permission denied" dù đã tắt RLS ở trên.
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE sgc_cai_dat_api TO anon, authenticated;
+
 -- Tự động cập nhật updated_at mỗi khi có thay đổi
 CREATE OR REPLACE FUNCTION sgc_set_updated_at()
 RETURNS TRIGGER AS $$
@@ -134,13 +139,19 @@ export default function CaiDatApiKeyModal({ isOpen, onClose }) {
       await loadStatus()
     } catch (err) {
       console.error('Lỗi khi lưu Gemini API Key:', err)
-      const msg = (err?.message || '').toLowerCase()
+      const rawMsg = err?.message || ''
+      const rawCode = err?.code ? ` [${err.code}]` : ''
+      const rawDetails = err?.details ? ` — ${err.details}` : ''
+      const rawHint = err?.hint ? ` (gợi ý: ${err.hint})` : ''
+      const fullRaw = `${rawMsg}${rawCode}${rawDetails}${rawHint}`
+      const msg = rawMsg.toLowerCase()
+
       if (msg.includes('does not exist') || msg.includes('could not find the table')) {
-        setError(`Chưa có bảng "${SETTINGS_TABLE}" trên Supabase. Vui lòng chạy câu lệnh SQL bên dưới rồi thử lưu lại.`)
+        setError(`Chưa có bảng "${SETTINGS_TABLE}" trên Supabase. Vui lòng chạy câu lệnh SQL bên dưới rồi thử lưu lại. Chi tiết lỗi gốc: ${fullRaw}`)
       } else if (msg.includes('row-level security') || msg.includes('permission denied')) {
-        setError('Supabase đang chặn ghi dữ liệu (Row Level Security). Vui lòng chạy lại câu lệnh SQL bên dưới để tắt RLS cho bảng này.')
+        setError(`Supabase đang chặn ghi dữ liệu (RLS/quyền truy cập). Chi tiết lỗi gốc: ${fullRaw}`)
       } else {
-        setError(err.message || 'Lưu Gemini API Key thất bại')
+        setError(fullRaw || 'Lưu Gemini API Key thất bại (không rõ nguyên nhân)')
       }
     } finally {
       setSaving(false)
