@@ -712,6 +712,25 @@ export default function EditModal({
     }
   }
 
+  // Tự động lưu ngay khi chọn Chức vụ khác (không cần bấm nút Lưu thay đổi)
+  const handleChucVuAutoSave = async (newValue) => {
+    const updated = { ...formData, chucVu: newValue }
+    setFormData(updated)
+    setIsSaving(true)
+    try {
+      if (onSave) {
+        await onSave(updated)
+      }
+      setSaveSuccessMsg('Đã lưu thành công!')
+      setTimeout(() => setSaveSuccessMsg(''), 1500)
+    } catch (err) {
+      console.error('Lỗi khi lưu chức vụ:', err)
+      alert('Lỗi lưu thông tin: ' + err.message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   // Xử lý lưu từ Modal chỉnh sửa popup chuẩn như sheet Tuyển dụng
   const handleSaveCandidateModal = async (updatedData) => {
     const merged = {
@@ -1223,7 +1242,7 @@ export default function EditModal({
                         <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
                           <select
                             value={formData.chucVu || 'Thủ kho hiện trường'}
-                            onChange={(e) => handleChange('chucVu', e.target.value)}
+                            onChange={(e) => handleChucVuAutoSave(e.target.value)}
                             style={{
                               appearance: 'none',
                               WebkitAppearance: 'none',
@@ -1321,24 +1340,6 @@ export default function EditModal({
                           <span>Xóa hồ sơ</span>
                         </button>
                       )}
-
-                      <button
-                        type="button"
-                        onClick={handleSubmit}
-                        disabled={isSaving}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 6,
-                          padding: '7px 16px', borderRadius: 8,
-                          border: 'none',
-                          background: '#059669',
-                          color: '#ffffff', fontWeight: 700, cursor: isSaving ? 'not-allowed' : 'pointer',
-                          fontSize: 13, whiteSpace: 'nowrap',
-                          boxShadow: '0 2px 4px rgba(5, 150, 105, 0.25)'
-                        }}
-                      >
-                        <Save size={14} />
-                        <span>{isSaving ? 'Đang lưu...' : 'Lưu thay đổi'}</span>
-                      </button>
                     </div>
                   </div>
                 </div>
