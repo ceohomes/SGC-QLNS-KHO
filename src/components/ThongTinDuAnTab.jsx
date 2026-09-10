@@ -516,6 +516,20 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
         }
       }
 
+      // 1b. Xóa trên Supabase các khối/dự án đã bị xóa ở giao diện (trước đây có trong originalBlocks nhưng nay không còn)
+      const currentBlockIds = new Set(mergedBlocksToSave.map(b => b.id))
+      const deletedBlockIds = originalBlocks
+        .map(b => b.id)
+        .filter(id => !currentBlockIds.has(id))
+
+      if (deletedBlockIds.length > 0) {
+        const { error: deleteBlockErr } = await supabase
+          .from('sgc_thong_tin_du_an_blocks')
+          .delete()
+          .in('id', deletedBlockIds)
+        if (deleteBlockErr) throw deleteBlockErr
+      }
+
       // 2. Đồng bộ projects lên sgc_thong_tin_du_an_projects
       const dbProjects = []
       mergedBlocksToSave.forEach(b => {
@@ -737,7 +751,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
     const block = blocks.find(b => b.id === blockId)
     if (!block) return
 
-    const message = `Xóa khối thi công:\n${block.name}\nToàn bộ thông tin liên quan đến khối thi công này và các dự án bên trong sẽ bị gỡ bỏ.\nHành động này không thể hoàn tác.`
+    const message = `Xóa dự án:\n${block.name}\nToàn bộ thông tin liên quan đến dự án này và các ngăn kho bên trong sẽ bị gỡ bỏ.\nHành động này không thể hoàn tác.`
 
     showConfirm(
       message,
@@ -747,7 +761,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
         await syncStateToSupabase(updatedBlocks)
       },
       () => {},
-      'XÁC NHẬN XÓA KHỐI THI CÔNG',
+      'XÁC NHẬN XÓA DỰ ÁN',
       'error'
     )
   }
@@ -840,7 +854,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
     const project = block?.projects[projectIndex]
     if (!project) return
 
-    const message = `Xóa dự án:\n${project.name}\nToàn bộ thông tin liên quan đến dự án này và các khối lượng của dự án sẽ bị gỡ bỏ khỏi khối.\nHành động này không thể hoàn tác.`
+    const message = `Xóa ngăn kho:\n${project.name}\nToàn bộ thông tin liên quan đến ngăn kho này sẽ bị gỡ bỏ khỏi dự án.\nHành động này không thể hoàn tác.`
 
     showConfirm(
       message,
@@ -856,7 +870,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
         syncStateToSupabase(updatedBlocks)
       },
       () => {},
-      'XÁC NHẬN XÓA DỰ ÁN',
+      'XÁC NHẬN XÓA NGĂN KHO',
       'error'
     )
   }
@@ -980,10 +994,10 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
           </div>
           <div>
             <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-              THIẾT LẬP KHỐI THI CÔNG & DỰ ÁN
+              THIẾT LẬP DỰ ÁN & NGĂN KHO
             </h4>
             <span style={{ fontSize: 13, color: 'var(--text-light)', display: 'flex', alignItems: 'center', gap: 5 }}>
-              💡 Kéo thả tiêu đề để thay đổi thứ tự khối. Kéo thả thẻ dự án để di chuyển giữa các khối.
+              💡 Kéo thả tiêu đề để thay đổi thứ tự dự án. Kéo thả thẻ ngăn kho để di chuyển giữa các dự án.
             </span>
           </div>
         </div>
@@ -995,7 +1009,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
             <input
               type="text"
               className="input"
-              placeholder="Tìm tên dự án..."
+              placeholder="Tìm tên ngăn kho..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{ width: '100%', paddingLeft: 36, paddingRight: searchQuery ? 32 : 12, fontSize: 13, height: 40, borderRadius: '10px', border: '1.5px solid #cbd5e1' }}
@@ -1113,11 +1127,11 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
         return (
           <div style={{ display: 'flex', gap: 16, flex: 1, minHeight: 0, overflow: 'hidden' }}>
 
-            {/* LEFT PANEL: Danh sách khối */}
+            {/* LEFT PANEL: Danh sách dự án */}
             <div style={{ width: '360px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
               <div className="card" style={{ padding: '12px 16px' }}>
                 <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase' }}>
-                  Danh sách khối ({blocks.length})
+                  Danh sách dự án ({blocks.length})
                 </span>
               </div>
 
@@ -1166,11 +1180,11 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                           background: '#f1f5f9', color: '#475569', fontSize: 11, fontWeight: 700,
                           padding: '3px 9px', borderRadius: 20, whiteSpace: 'nowrap'
                         }}>
-                          {block.projects.length} DA
+                          {block.projects.length} NK
                         </span>
                         <button
                           onClick={(e) => { e.stopPropagation(); openEditBlock(block) }}
-                          title="Sửa khối"
+                          title="Sửa dự án"
                           style={{ background: 'none', border: 'none', padding: 3, cursor: 'pointer', color: '#94a3b8' }}
                           onMouseOver={(e) => e.currentTarget.style.color = '#0050b3'}
                           onMouseOut={(e) => e.currentTarget.style.color = '#94a3b8'}
@@ -1180,7 +1194,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                         {block.id !== 'unassigned' && (
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDeleteBlock(block.id) }}
-                            title="Xóa khối"
+                            title="Xóa dự án"
                             style={{ background: 'none', border: 'none', padding: 3, cursor: 'pointer', color: '#94a3b8' }}
                             onMouseOver={(e) => e.currentTarget.style.color = '#ef4444'}
                             onMouseOut={(e) => e.currentTarget.style.color = '#94a3b8'}
@@ -1211,12 +1225,12 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                   }}
                 >
                   <Plus size={16} style={{ color: '#0050b3' }} />
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>Thêm khối mới</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>Thêm dự án mới</span>
                 </button>
               </div>
             </div>
 
-            {/* RIGHT PANEL: Dự án của khối đang chọn */}
+            {/* RIGHT PANEL: Ngăn kho của dự án đang chọn */}
             <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
               {effectiveSelectedBlock ? (
                 <>
@@ -1240,7 +1254,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                         {effectiveSelectedBlock.name}
                       </h3>
                       <span style={{ fontSize: 11.5, color: '#94a3b8', fontWeight: 700 }}>
-                        {searchQuery ? `${filteredProjects.length}/${effectiveSelectedBlock.projects.length}` : effectiveSelectedBlock.projects.length} DỰ ÁN
+                        {searchQuery ? `${filteredProjects.length}/${effectiveSelectedBlock.projects.length}` : effectiveSelectedBlock.projects.length} NGĂN KHO
                       </span>
                     </div>
                     <button
@@ -1253,7 +1267,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                       }}
                     >
                       <Plus size={14} />
-                      <span>Thêm dự án</span>
+                      <span>Thêm ngăn kho</span>
                     </button>
                   </div>
 
@@ -1269,7 +1283,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                         justifyContent: 'center', color: '#94a3b8', fontSize: 13,
                         fontFamily: '"Roboto", sans-serif', fontWeight: 600, textAlign: 'center'
                       }}>
-                        {searchQuery ? 'Không tìm thấy dự án phù hợp' : 'Kéo dự án vào đây, hoặc bấm "Thêm dự án"'}
+                        {searchQuery ? 'Không tìm thấy ngăn kho phù hợp' : 'Kéo ngăn kho vào đây, hoặc bấm "Thêm ngăn kho"'}
                       </div>
                     ) : (
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 10 }}>
@@ -1343,7 +1357,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                   flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
                   color: '#94a3b8', fontSize: 13.5, fontWeight: 600, padding: 24, textAlign: 'center'
                 }}>
-                  Chưa có khối nào. Bấm "Thêm khối mới" ở panel bên trái để bắt đầu.
+                  Chưa có dự án nào. Bấm "Thêm dự án mới" ở panel bên trái để bắt đầu.
                 </div>
               )}
             </div>
@@ -1443,7 +1457,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
               display: 'flex', alignItems: 'center', justifyContent: 'space-between'
             }}>
               <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>
-                {editingBlock ? 'SỬA KHỐI THI CÔNG' : 'THÊM KHỐI THI CÔNG MỚI'}
+                {editingBlock ? 'SỬA DỰ ÁN' : 'THÊM DỰ ÁN MỚI'}
               </h4>
               <button 
                 onClick={() => setIsBlockModalOpen(false)}
@@ -1456,7 +1470,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
             <form onSubmit={handleBlockSubmit} style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 6 }}>
-                  Tên khối thi công *
+                  Tên dự án *
                 </label>
                 <input
                   type="text"
@@ -1552,7 +1566,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
               display: 'flex', alignItems: 'center', justifyContent: 'space-between'
             }}>
               <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>
-                {editingProject ? 'SỬA TÊN DỰ ÁN' : 'THÊM DỰ ÁN MỚI'}
+                {editingProject ? 'SỬA TÊN NGĂN KHO' : 'THÊM NGĂN KHO MỚI'}
               </h4>
               <button 
                 onClick={() => setIsProjectModalOpen(false)}
@@ -1565,7 +1579,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
             <form onSubmit={handleProjectSubmit} style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 6 }}>
-                  Tên Dự án / Công trình *
+                  Tên Ngăn kho *
                 </label>
                 <input
                   type="text"
