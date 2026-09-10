@@ -135,12 +135,14 @@ function EditThuKhoPopupModal({ data, formData, onClose, onSave, availableBlocks
   }
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)',
-      backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center',
-      justifyContent: 'center', zIndex: 10050, padding: 16,
-      fontFamily: "'Roboto', sans-serif"
-    }}>
+    <div
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)',
+        backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center',
+        justifyContent: 'center', zIndex: 10050, padding: 16,
+        fontFamily: "'Roboto', sans-serif"
+      }}>
       <div style={{
         width: 760, maxWidth: '100%', maxHeight: '92vh', background: '#ffffff',
         borderRadius: 20, boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
@@ -268,43 +270,6 @@ function EditThuKhoPopupModal({ data, formData, onClose, onSave, availableBlocks
               </div>
             </div>
 
-            {/* Hàng 3.1: Khối thi công & Dự án phân bổ */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 5, color: '#1e293b' }}>
-                  Khối thi công
-                </label>
-                <select
-                  className="input"
-                  style={{ width: '100%', height: 40, borderRadius: 8, fontSize: 14 }}
-                  value={modalForm.banChuoiKhoi || ''}
-                  onChange={e => setModalForm({ ...modalForm, banChuoiKhoi: e.target.value })}
-                >
-                  <option value="">— Chưa phân bổ —</option>
-                  {(availableBlocks.length > 0 ? availableBlocks : BAN_CHUOI_KHOI_LIST).map(b => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 5, color: '#1e293b' }}>
-                  Dự án phân bổ
-                </label>
-                <select
-                  className="input"
-                  style={{ width: '100%', height: 40, borderRadius: 8, fontSize: 14 }}
-                  value={modalForm.duAn || 'Chưa phân bổ'}
-                  onChange={e => setModalForm({ ...modalForm, duAn: e.target.value })}
-                >
-                  <option value="Chưa phân bổ">Chưa phân bổ</option>
-                  {DU_AN_LIST.filter(p => !modalForm.banChuoiKhoi || p.banChuoiKhoi === modalForm.banChuoiKhoi).map(p => (
-                    <option key={p.ten} value={p.ten}>{p.ten}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
             {/* Hàng 4: Trình độ & Số năm kinh nghiệm */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
               <div>
@@ -365,36 +330,6 @@ function EditThuKhoPopupModal({ data, formData, onClose, onSave, availableBlocks
                   value={modalForm.queQuan || modalForm.diaChi || ''}
                   onChange={e => setModalForm({ ...modalForm, queQuan: e.target.value, diaChi: e.target.value })}
                   placeholder="Tỉnh/Thành phố hoặc địa chỉ cư trú"
-                />
-              </div>
-            </div>
-
-            {/* Hàng 6: Lương cơ bản & Chứng chỉ */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 5, color: '#1e293b' }}>
-                  Lương cơ bản (VNĐ)
-                </label>
-                <input
-                  type="number"
-                  className="input"
-                  style={{ width: '100%', height: 40, borderRadius: 8, fontSize: 14 }}
-                  value={modalForm.luongCoBan ?? ''}
-                  onChange={e => setModalForm({ ...modalForm, luongCoBan: e.target.value === '' ? null : Number(e.target.value) })}
-                  placeholder="VD: 12000000"
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 5, color: '#1e293b' }}>
-                  Chứng chỉ nghề nghiệp / ATLĐ
-                </label>
-                <input
-                  className="input"
-                  style={{ width: '100%', height: 40, borderRadius: 8, fontSize: 14 }}
-                  value={modalForm.chungChiNghiepVuKho || modalForm.chungChiATLD || ''}
-                  onChange={e => setModalForm({ ...modalForm, chungChiNghiepVuKho: e.target.value, chungChiATLD: e.target.value })}
-                  placeholder="VD: Chứng chỉ nghiệp vụ kho, ATLĐ..."
                 />
               </div>
             </div>
@@ -1136,50 +1071,6 @@ export default function EditModal({
 
             <button
               type="button"
-              onClick={() => setIsFullScreen(!isFullScreen)}
-              style={{
-                background: 'rgba(255, 255, 255, 0.15)',
-                border: 'none',
-                color: '#ffffff',
-                borderRadius: 8,
-                padding: '7px 10px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                fontSize: 12,
-                fontWeight: 600
-              }}
-              title={isFullScreen ? 'Thu nhỏ cửa sổ' : 'Phóng to toàn màn hình'}
-            >
-              {isFullScreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={isSaving}
-              style={{
-                background: '#10b981',
-                border: 'none',
-                color: '#ffffff',
-                borderRadius: 8,
-                padding: '7px 16px',
-                cursor: isSaving ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                fontSize: 13,
-                fontWeight: 700,
-                boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
-              }}
-            >
-              <Save size={15} />
-              <span>{isSaving ? 'Đang lưu...' : 'Lưu thay đổi'}</span>
-            </button>
-
-            <button
-              type="button"
               onClick={onClose}
               style={{
                 background: 'rgba(255, 255, 255, 0.25)',
@@ -1236,31 +1127,6 @@ export default function EditModal({
                       <span>ĐÁNH GIÁ ĐỘ PHÙ HỢP TỪ GEMINI AI</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        onClick={() => setShowEditCandidateModal(true)}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 5,
-                          background: '#ffffff', color: '#6d28d9',
-                          border: '1px solid #c4b5fd', borderRadius: 8, padding: '5px 12px',
-                          fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                          boxShadow: '0 1px 2px rgba(109, 40, 217, 0.08)',
-                          transition: 'all 0.15s ease'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = '#f5f3ff'
-                          e.currentTarget.style.borderColor = '#8b5cf6'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = '#ffffff'
-                          e.currentTarget.style.borderColor = '#c4b5fd'
-                        }}
-                        title="Chỉnh sửa toàn bộ thông tin nhân sự dạng popup chuẩn"
-                      >
-                        <Edit3 size={13} color="#7c3aed" />
-                        <span>Chỉnh sửa toàn bộ</span>
-                      </button>
-
                       <button
                         type="button"
                         disabled={isRescanning}
