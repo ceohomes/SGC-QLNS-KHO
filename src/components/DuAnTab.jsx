@@ -683,7 +683,6 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
 
   // Common storekeeper card renderer for both Split View and Kanban View
   const renderStorekeeperCard = (tk) => {
-    const isMenuOpen = activeTransferMenu === tk.maNV
     const cardStyle = getProjectStyle(tk.duAn, tk.trangThai)
 
     return (
@@ -769,153 +768,10 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
 
           {/* Action buttons */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, position: 'relative' }}>
-            {/* Quick Transfer Button */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setActiveTransferMenu(isMenuOpen ? null : tk.maNV)
-              }}
-              title="Chuyển nhanh sang dự án khác"
-              style={{
-                background: isMenuOpen ? '#0f58a7' : '#f1f5f9',
-                color: isMenuOpen ? '#ffffff' : '#0f58a7',
-                border: '1px solid #e2e8f0',
-                borderRadius: '6px',
-                padding: '3px 6px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 3,
-                fontSize: '10.5px',
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              <ArrowRightLeft size={11} />
-              <span>Chuyển</span>
-            </button>
-
-            {/* Edit Button */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setEditingStorekeeper(tk)
-              }}
-              title="Chỉnh sửa thông tin"
-              style={{
-                background: '#f1f5f9',
-                color: '#475569',
-                border: '1px solid #e2e8f0',
-                borderRadius: '6px',
-                padding: '3px 5px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                fontSize: '11px',
-                cursor: 'pointer'
-              }}
-            >
-              <Pencil size={11} />
-            </button>
-
             {/* Drag Handle */}
             <div style={{ color: '#94a3b8', cursor: 'grab', display: 'flex', alignItems: 'center' }}>
               <GripVertical size={14} title="Kéo & thả để chuyển dự án" />
             </div>
-
-            {/* Quick Transfer Dropdown Popover */}
-            {isMenuOpen && (
-              <div
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: 6,
-                  width: 250,
-                  maxHeight: 300,
-                  overflowY: 'auto',
-                  backgroundColor: '#ffffff',
-                  borderRadius: 10,
-                  border: '1.5px solid #cbd5e1',
-                  boxShadow: '0 10px 25px -5px rgba(0,0,0,0.2), 0 8px 10px -6px rgba(0,0,0,0.1)',
-                  zIndex: 100,
-                  padding: 6,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 3,
-                  textAlign: 'left'
-                }}
-              >
-                <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', padding: '4px 8px', textTransform: 'uppercase' }}>
-                  Chuyển sang dự án:
-                </div>
-                <button
-                  type="button"
-                  onClick={() => transferPersonnel(tk, 'Chưa phân bổ')}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px',
-                    borderRadius: 6, fontSize: 12, fontWeight: 600, color: '#334155',
-                    background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left'
-                  }}
-                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                >
-                  <span style={{ fontSize: 9.5, padding: '1px 5px', borderRadius: 4, background: '#e2e8f0', color: '#475569', fontWeight: 800 }}>HOLD</span>
-                  <span>Chưa phân bổ</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => transferPersonnel(tk, 'Đã nghỉ việc')}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px',
-                    borderRadius: 6, fontSize: 12, fontWeight: 600, color: '#ef4444',
-                    background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left'
-                  }}
-                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#fef2f2'}
-                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                >
-                  <span style={{ fontSize: 9.5, padding: '1px 5px', borderRadius: 4, background: '#fee2e2', color: '#dc2626', fontWeight: 800 }}>QUIT</span>
-                  <span>Đã nghỉ việc</span>
-                </button>
-                <div style={{ height: 1, backgroundColor: '#e2e8f0', margin: '3px 0' }} />
-                {blocks.map(b => (
-                  <div key={b.id} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <div style={{ fontSize: 10, fontWeight: 800, color: b.color || '#0f58a7', padding: '4px 8px 1px 8px', textTransform: 'uppercase' }}>
-                      {b.badge} • {b.name}
-                    </div>
-                    {(b.projects || []).map(p => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => transferPersonnel(tk, p.name)}
-                        style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          gap: 6, padding: '5px 8px 5px 14px', borderRadius: 5, fontSize: 11.5,
-                          fontWeight: 500, color: '#1e293b', background: 'transparent',
-                          border: 'none', cursor: 'pointer', textAlign: 'left'
-                        }}
-                        onMouseOver={(e) => {
-                          e.currentTarget.style.backgroundColor = b.bgColor || '#f0f9ff'
-                          e.currentTarget.style.color = b.color || '#0f58a7'
-                        }}
-                        onMouseOut={(e) => {
-                          e.currentTarget.style.backgroundColor = 'transparent'
-                          e.currentTarget.style.color = '#1e293b'
-                        }}
-                      >
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-                        {p.badge && (
-                          <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 3, background: b.badgeBg || '#e0f2fe', color: b.color || '#0f58a7', fontWeight: 700 }}>
-                            {p.badge}
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
 
@@ -1164,6 +1020,13 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
         </div>
       </div>
 
+      {/* Thống kê theo chức danh - đặt cố định ngay dưới thanh tiêu đề, không phụ thuộc dự án đang chọn hoặc đang tìm kiếm */}
+      {Object.keys(chucVuCounts).length > 0 && (
+        <div className="card" style={{ padding: '10px 20px', display: 'flex', alignItems: 'center' }}>
+          {renderChucVuStats()}
+        </div>
+      )}
+
       {/* Main Dual-Pane Workspace OR Kanban View */}
       {viewMode === 'split' ? (
         <div style={{ display: 'flex', gap: 24, flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -1178,19 +1041,7 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
                   Danh sách dự án ({projectStats.length})
                 </span>
               </div>
-              <div style={{ position: 'relative' }}>
-                <Building2 size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                <input
-                  type="text"
-                  className="input"
-                  placeholder="Tìm dự án, công trình nhanh..."
-                  value={searchProject}
-                  onChange={(e) => setSearchProject(e.target.value)}
-                  style={{ width: '100%', paddingLeft: 34, fontSize: 13, height: 38 }}
-                />
-              </div>
-
-              {/* Công cụ lọc thủ kho trên toàn hệ thống (đã chuyển từ thanh công cụ phía trên xuống đây) */}
+              {/* Công cụ lọc thủ kho trên toàn hệ thống */}
               <div style={{ position: 'relative' }}>
                 <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                 <input
@@ -1211,6 +1062,18 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
               }}>
                 <span style={{ fontWeight: 700, color: '#1e40af' }}>Tổng số thủ kho</span>
                 <span style={{ fontWeight: 800, color: '#1e40af' }}>{data.length} người</span>
+              </div>
+
+              <div style={{ position: 'relative' }}>
+                <Building2 size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Tìm dự án, công trình nhanh..."
+                  value={searchProject}
+                  onChange={(e) => setSearchProject(e.target.value)}
+                  style={{ width: '100%', paddingLeft: 34, fontSize: 13, height: 38 }}
+                />
               </div>
             </div>
 
@@ -1450,7 +1313,6 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
                     Tìm thấy {activeProjectStorekeepers.length} thủ kho khớp với "{searchStorekeeper}"
                   </h4>
                 </div>
-                {renderChucVuStats()}
               </div>
             ) : (
               selectedProjectInfo && (
@@ -1492,7 +1354,6 @@ export default function DuAnTab({ data = [], onUpdateData, onReload }) {
                       {selectedProjectInfo.name}
                     </h4>
                   </div>
-                  {renderChucVuStats()}
                 </div>
               )
             )}

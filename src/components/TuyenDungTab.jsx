@@ -272,11 +272,12 @@ export const DEFAULT_REAL_CANDIDATES = [
   }
 ]
 
-export default function TuyenDungTab({ 
-  existingThuKhoData, 
-  onRecruitSuccess, 
+export default function TuyenDungTab({
+  existingThuKhoData,
+  onRecruitSuccess,
   onNavigateToStorekeeper,
-  dbStatus
+  dbStatus,
+  onCandidatesCountChange
 }) {
   const [candidates, setCandidates] = useState(() => {
     try {
@@ -379,6 +380,13 @@ export default function TuyenDungTab({
   useEffect(() => {
     setCandidates(prev => prev.map(normalizeCandidate))
   }, [])
+
+  // Báo số lượng hồ sơ thực tế lên App.jsx để hiển thị đúng badge số lượng trên Sidebar
+  useEffect(() => {
+    if (typeof onCandidatesCountChange === 'function') {
+      onCandidatesCountChange(candidates.length)
+    }
+  }, [candidates, onCandidatesCountChange])
 
   // Save candidates locally whenever changed
   // Strip heavy fileDataUrl so localStorage never exceeds 5MB quota

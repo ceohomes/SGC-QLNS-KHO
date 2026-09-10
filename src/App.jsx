@@ -83,7 +83,7 @@ export default function App() {
     loadData()
   }, [])
 
-  const [recruitmentCount, setRecruitmentCount] = useState(3)
+  const [recruitmentCount, setRecruitmentCount] = useState(0)
 
   // Hàm xử lý khi ứng viên được tuyển dụng thành công -> chuyển sang Danh sách thủ kho
   const handleRecruitSuccess = async (candidate, officialMaNV, officialDuAn, officialChucVu, officialKhoi) => {
@@ -267,6 +267,7 @@ export default function App() {
                   onRecruitSuccess={handleRecruitSuccess}
                   onNavigateToStorekeeper={handleNavigateToStorekeeper}
                   dbStatus={dbStatus}
+                  onCandidatesCountChange={setRecruitmentCount}
                 />
               )}
               {tab === 'danhsach' && (
