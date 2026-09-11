@@ -694,6 +694,10 @@ export default function EditModal({
   // Lưu thông tin
   const handleSubmit = async (e) => {
     if (e) e.preventDefault()
+    if (formData.isNew && !String(formData.maNV || '').trim()) {
+      alert('Vui lòng nhập Mã nhân viên (ID) trước khi lưu hồ sơ thủ kho mới.')
+      return
+    }
     setIsSaving(true)
     try {
       if (onSave) {
@@ -1412,14 +1416,29 @@ export default function EditModal({
                     </div>
 
                     <div>
-                      <label style={labelStyle}>Mã nhân viên (ID)</label>
+                      <label style={labelStyle}>
+                        Mã nhân viên (ID) {formData.isNew && <span style={{ color: '#ef4444' }}>*</span>}
+                      </label>
                       <input
                         type="text"
-                        style={{ ...inputStyle, fontWeight: 700, backgroundColor: formData.isNew ? '#ffffff' : '#f1f5f9', color: '#0f58a7' }}
+                        style={{
+                          ...inputStyle,
+                          fontWeight: 700,
+                          backgroundColor: formData.isNew ? '#ffffff' : '#f1f5f9',
+                          color: '#0f58a7',
+                          borderColor: (formData.isNew && !String(formData.maNV || '').trim()) ? '#fca5a5' : inputStyle.borderColor
+                        }}
                         value={formData.maNV || ''}
                         onChange={e => handleChange('maNV', e.target.value)}
                         disabled={!formData.isNew}
+                        required={formData.isNew}
+                        placeholder={formData.isNew ? 'Bắt buộc nhập Mã NV' : ''}
                       />
+                      {formData.isNew && !String(formData.maNV || '').trim() && (
+                        <span style={{ fontSize: 11, color: '#dc2626', fontWeight: 600 }}>
+                          Vui lòng nhập Mã NV trước khi lưu
+                        </span>
+                      )}
                     </div>
 
                     <div>
