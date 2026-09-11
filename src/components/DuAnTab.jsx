@@ -3,7 +3,7 @@ import {
   Building2, Search, MapPin, Briefcase, Users, GripVertical, Check,
   RefreshCw, UserMinus, ArrowRightLeft, MoveRight, ChevronRight,
   UserCheck, ExternalLink, Columns, LayoutGrid, Pencil, ChevronDown,
-  ChevronUp, Layers, Filter, Download
+  ChevronUp, Layers, Filter, Download, UserPlus
 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import { chucVuBadgeClass, avatarColor, initials } from '../constants.js'
@@ -140,6 +140,21 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
         ghi_chu: updatedRow.ghiChu
       }
 
+      const isNewRecord = Boolean(updatedRow.isNew)
+
+      if (isNewRecord) {
+        if (!updatedRow.maNV || !String(updatedRow.maNV).trim()) {
+          throw new Error('Vui lòng nhập Mã nhân viên (ID) cho thủ kho mới.')
+        }
+        if (!payload.stt) {
+          const maxStt = data.reduce((max, item) => Math.max(max, Number(item.stt) || 0), 0)
+          payload.stt = maxStt + 1
+        }
+        if (!payload.trang_thai) {
+          payload.trang_thai = 'Đang làm việc'
+        }
+      }
+
       let success = false
       let attempts = 0
       const maxAttempts = 40
@@ -147,10 +162,12 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
 
       while (!success && attempts < maxAttempts) {
         attempts++
-        const { error } = await supabase
-          .from('danh_sach_thu_kho')
-          .update(currentPayload)
-          .eq('ma_nv', updatedRow.maNV)
+        const { error } = isNewRecord
+          ? await supabase.from('danh_sach_thu_kho').insert(currentPayload)
+          : await supabase
+              .from('danh_sach_thu_kho')
+              .update(currentPayload)
+              .eq('ma_nv', updatedRow.maNV)
 
         if (!error) {
           success = true
@@ -168,12 +185,22 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
         }
       }
 
-      setSuccessToast(`Đã lưu thông tin thủ kho ${updatedRow.hoTen} thành công!`)
+      if (!success) {
+        throw new Error('Không thể lưu dữ liệu sau nhiều lần thử. Vui lòng kiểm tra lại cấu trúc bảng Supabase.')
+      }
+
+      setSuccessToast(isNewRecord
+        ? `Đã thêm mới thủ kho ${updatedRow.hoTen} thành công!`
+        : `Đã lưu thông tin thủ kho ${updatedRow.hoTen} thành công!`)
 
       if (onReload) {
         await onReload()
       } else if (onUpdateData) {
-        onUpdateData(prev => prev.map(item => item.maNV === updatedRow.maNV ? updatedRow : item))
+        if (isNewRecord) {
+          onUpdateData(prev => [...prev, updatedRow])
+        } else {
+          onUpdateData(prev => prev.map(item => item.maNV === updatedRow.maNV ? updatedRow : item))
+        }
       }
     } catch (err) {
       console.error('Lỗi khi lưu thông tin:', err)
@@ -1014,6 +1041,25 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
 
         {/* View Mode Switcher & Global Storekeeper Search Bar & Save Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+
+          {/* Nút thêm mới thủ kho */}
+          <button
+            type="button"
+            onClick={() => setEditingStorekeeper({ isNew: true, stt: null, maNV: '', hoTen: '', gioiTinh: 'Nam', trangThai: 'Đang làm việc', duAn: selectedProjectId !== 'UNASSIGNED' ? (allProjects.find(p => p.id === selectedProjectId)?.name || '') : '' })}
+            title="Thêm mới hồ sơ thủ kho"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+              background: '#0f58a7',
+              color: '#ffffff', border: 'none',
+              cursor: 'pointer',
+              boxShadow: '0 4px 6px -1px rgba(15,88,167,0.2)',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <UserPlus size={15} />
+            <span>Thêm thủ kho</span>
+          </button>
 
           {/* Nút xuất Excel danh sách nhân sự đang hiển thị */}
           <button
