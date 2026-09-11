@@ -199,11 +199,11 @@ export default function DashboardTab({ data = [], onNavigateToTab }) {
               const blockNames = Object.keys(byBlock).sort((a, b) => {
                 if (a === 'Chưa phân bổ') return 1
                 if (b === 'Chưa phân bổ') return -1
-                return a.localeCompare(b)
+                return a.localeCompare(b, 'vi')
               })
 
               return blockNames.map((blockName, groupIdx) => {
-                const projs = byBlock[blockName].sort((a, b) => b.totalThuKho - a.totalThuKho)
+                const projs = byBlock[blockName].sort((a, b) => a.project.localeCompare(b.project, 'vi'))
                 const groupColor = warehouseStats.blockColorMap[blockName] || UNASSIGNED_COLOR
                 return (
                   <div key={blockName}>
