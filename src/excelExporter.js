@@ -246,7 +246,7 @@ export async function exportDinhBienTheoNganKho(blocksData) {
 
     worksheet.columns = [
       { header: 'STT', key: 'stt', width: 8 },
-      { header: 'Dự án / Ngăn kho / Thủ kho', key: 'label', width: 100 },
+      { header: 'Dự án / Ngăn kho / Thủ kho', key: 'label', width: 70 },
       { header: 'Mã NV', key: 'maNV', width: 14 },
       { header: 'Họ và tên', key: 'hoTen', width: 26 },
       { header: 'Chức danh', key: 'chucVu', width: 22 },
