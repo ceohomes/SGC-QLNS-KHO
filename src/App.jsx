@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import Header from './components/Header.jsx'
 import Sidebar from './components/Sidebar.jsx'
-import DashboardTab from './components/DashboardTab.jsx'
 import ThongTinDuAnTab from './components/ThongTinDuAnTab.jsx'
 import DuAnTab from './components/DuAnTab.jsx'
 import DinhBienTab from './components/DinhBienTab.jsx'
@@ -18,7 +17,7 @@ import {
 } from './pdfStorage.js'
 
 export default function App() {
-  const [tab, setTab] = useState('dashboard')
+  const [tab, setTab] = useState('duan')
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [dbStatus, setDbStatus] = useState('loading') // 'loading' | 'connected' | 'empty' | 'error'
@@ -204,7 +203,6 @@ export default function App() {
   // Đếm số lượng để hiển thị badge số lượng trong Sidebar
   const counts = useMemo(() => {
     return {
-      dashboard: 0,
       tuyendung: recruitmentCount
     }
   }, [data, recruitmentCount])
@@ -248,17 +246,6 @@ export default function App() {
             </div>
           ) : (
             <>
-              {tab === 'dashboard' && (
-                <DashboardTab 
-                  data={data} 
-                  onNavigateToTab={(nextTab, filterVal) => {
-                    if (filterVal !== undefined) {
-                      setInitialDuAnFilter(filterVal)
-                    }
-                    setTab(nextTab)
-                  }} 
-                />
-              )}
               {tab === 'tuyendung' && (
                 <TuyenDungTab
                   existingThuKhoData={data}

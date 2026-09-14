@@ -324,6 +324,9 @@ export default function DinhBienTab({ data = [], onReload }) {
 
     const diffRaw = totalTarget - totalActual
 
+    const visibleBlockIds = new Set(projectDinhBienData.map(p => p.blockId))
+    const totalBlocks = blocks.filter(b => visibleBlockIds.has(b.id)).length
+
     return {
       totalTarget,
       totalActual,
@@ -332,9 +335,10 @@ export default function DinhBienTab({ data = [], onReload }) {
       lackCount,
       excessCount,
       perfectCount,
-      totalProjects: projectDinhBienData.length
+      totalProjects: projectDinhBienData.length,
+      totalBlocks
     }
-  }, [projectDinhBienData])
+  }, [projectDinhBienData, blocks])
 
   // ─── 7. KIỂM TRA THAY ĐỔI CHƯA LƯU ───
   const hasUnsavedChanges = useMemo(() => {
@@ -544,11 +548,20 @@ export default function DinhBienTab({ data = [], onReload }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
           {/* 4 Compact KPIs */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {/* Metric 0: Tổng Dự án (số nhóm khối/dự án) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: '#fdf4ff', borderRadius: '8px', border: '1px solid #e9d5ff' }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#a855f7' }} />
+              <div>
+                <span style={{ fontSize: 10, color: '#a855f7', display: 'block', fontWeight: 700, lineHeight: 1.1 }}>Tổng dự án</span>
+                <span style={{ fontSize: 12.5, fontWeight: 800, color: '#6b21a8' }}>{kpis.totalBlocks}</span>
+              </div>
+            </div>
+
             {/* Metric 1: Projects */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#0f58a7' }} />
               <div>
-                <span style={{ fontSize: 10, color: '#64748b', display: 'block', fontWeight: 700, lineHeight: 1.1 }}>Dự án</span>
+                <span style={{ fontSize: 10, color: '#64748b', display: 'block', fontWeight: 700, lineHeight: 1.1 }}>Ngăn kho</span>
                 <span style={{ fontSize: 12.5, fontWeight: 800, color: '#1e293b' }}>{kpis.totalProjects}</span>
               </div>
             </div>
@@ -877,13 +890,34 @@ export default function DinhBienTab({ data = [], onReload }) {
                   const blockProjects = filteredProjectDinhBienData.filter(p => p.blockId === block.id)
                   if (blockProjects.length === 0) return null
 
+                  const blockTotalActual = blockProjects.reduce((sum, p) => sum + (p.actual || 0), 0)
+
                   return (
                     <React.Fragment key={block.id}>
                       {/* Tiêu đề nhóm Khối */}
                       <tr style={{ backgroundColor: block.badgeBg || block.badge_bg || block.bgColor || block.bg_color || '#f1f5f9', borderBottom: '1.5px solid ' + (block.borderColor || block.border_color || '#cbd5e1') }}>
                         <td colSpan="14" style={{ padding: '10px 14px', fontSize: 12, fontWeight: 800, color: block.color || '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: block.color || '#475569', marginRight: 8 }} />
-                          {block.name}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                            <span>
+                              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: block.color || '#475569', marginRight: 8 }} />
+                              {block.name}
+                              <span style={{ fontWeight: 600, opacity: 0.75, marginLeft: 6, textTransform: 'none', letterSpacing: 'normal' }}>
+                                · {blockProjects.length} ngăn kho
+                              </span>
+                            </span>
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 4,
+                              fontSize: 11.5, fontWeight: 800,
+                              color: block.color || '#475569',
+                              background: 'rgba(255,255,255,0.6)',
+                              border: `1px solid ${block.color || '#cbd5e1'}55`,
+                              borderRadius: '12px', padding: '2px 10px',
+                              textTransform: 'none', letterSpacing: 'normal'
+                            }}>
+                              <Users size={11} />
+                              Tổng: {blockTotalActual}
+                            </span>
+                          </div>
                         </td>
                       </tr>
 
