@@ -222,6 +222,15 @@ export async function exportThuKhoExcel(data) {
   }
 }
 
+// Chuyển mã màu hex dạng webapp (#RRGGBB hoặc RRGGBB) sang định dạng ARGB dùng cho ExcelJS
+function toArgb(hex, fallback) {
+  if (!hex) return fallback;
+  const clean = String(hex).trim().replace('#', '').toUpperCase();
+  if (clean.length === 6) return clean;
+  if (clean.length === 3) return clean.split('').map(c => c + c).join('');
+  return fallback;
+}
+
 // Xuất Excel danh sách Định biên dạng cây có thể thu gọn/mở rộng (Excel Group/Outline):
 // Mỗi Dự án (khối) là 1 dòng chính (cấp 0) -> mỗi Ngăn kho là 1 dòng chính con (cấp 1) -> mỗi thủ kho là 1 dòng chi tiết (cấp 2)
 // blocksData: [{ name: 'Tên Dự án', projects: [{ name: 'Tên Ngăn kho', staff: [{ maNV, hoTen, chucVu, soDienThoai }] }] }]
@@ -270,9 +279,12 @@ export async function exportDinhBienTheoNganKho(blocksData) {
       });
       blockRow.outlineLevel = 0;
       blockRow.height = 26;
+      const blockBg = toArgb(block.badgeBg, '0F58A7');
+      const blockFont = toArgb(block.color, 'FFFFFF');
       blockRow.eachCell((cell) => {
-        cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFF' } };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '0F58A7' } };
+        cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: blockFont } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: blockBg } };
+        cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
       });
 
       block.projects.forEach((project) => {
@@ -288,6 +300,7 @@ export async function exportDinhBienTheoNganKho(blocksData) {
         projectRow.eachCell((cell) => {
           cell.font = { name: 'Arial', size: 10.5, bold: true, color: { argb: '0F58A7' } };
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EFF6FF' } };
+          cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
         });
 
         if (staffList.length === 0) {
@@ -298,6 +311,7 @@ export async function exportDinhBienTheoNganKho(blocksData) {
           emptyRow.height = 20;
           emptyRow.eachCell((cell) => {
             cell.font = { name: 'Arial', size: 10, italic: true, color: { argb: '94A3B8' } };
+            cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
           });
         } else {
           staffList.forEach((tk) => {
@@ -322,7 +336,8 @@ export async function exportDinhBienTheoNganKho(blocksData) {
               cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: staffCounter % 2 === 0 ? 'F8FAFC' : 'FFFFFF' } };
               cell.alignment = {
                 vertical: 'middle',
-                horizontal: ['stt', 'maNV', 'chucVu', 'soDienThoai'].includes(headerKey) ? 'center' : 'left'
+                horizontal: ['stt', 'maNV', 'chucVu', 'soDienThoai'].includes(headerKey) ? 'center' : 'left',
+                wrapText: true
               };
               cell.border = {
                 top: { style: 'thin', color: { argb: 'E2E8F0' } },

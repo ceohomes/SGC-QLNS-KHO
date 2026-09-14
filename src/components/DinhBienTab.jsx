@@ -547,7 +547,13 @@ export default function DinhBienTab({ data = [], onReload }) {
         }
       })
 
-      blocksData.push({ name: block.name, projects })
+      blocksData.push({
+        name: block.name,
+        badgeBg: block.badgeBg || block.badge_bg || block.bgColor || block.bg_color,
+        color: block.color,
+        borderColor: block.borderColor || block.border_color,
+        projects
+      })
     })
 
     if (blocksData.length === 0) {
