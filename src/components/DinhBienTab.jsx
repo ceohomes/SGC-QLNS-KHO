@@ -237,7 +237,9 @@ export default function DinhBienTab({ data = [], onReload }) {
             list.push({
               id: p.id,
               name: p.name,
-              badge: p.badge || b.badge,
+              // Luôn dùng badge của Dự án (khối) để đồng nhất với trang "Thông tin dự án", tránh hiện badge lạ/thừa
+              // do dữ liệu badge riêng của từng ngăn kho có thể bị nhập sai hoặc còn sót lại (VD: "Trống Đồng", "TB"...)
+              badge: b.badge,
               blockId: b.id,
               blockName: b.name,
               color: b.color,
@@ -520,43 +522,40 @@ export default function DinhBienTab({ data = [], onReload }) {
   // (tức thứ tự sort_order gốc từ Supabase, KHÔNG tự sắp xếp lại theo A-Z hay theo thứ tự riêng ở trang này nữa)
   const orderedBlocks = blocks
 
-  // Xuất Excel: Danh sách theo Dự án -> Ngăn kho tương ứng -> Danh sách thủ kho theo ngăn kho tương ứng
+  // Xuất Excel dạng cây có thể thu gọn/mở rộng: mỗi Dự án là 1 dòng chính -> mỗi Ngăn kho là 1 dòng chính con -> Danh sách thủ kho tương ứng
   const handleExportExcel = () => {
-    const rows = []
+    const blocksData = []
     orderedBlocks.forEach(block => {
       const blockProjects = filteredProjectDinhBienData.filter(p => p.blockId === block.id)
       if (blockProjects.length === 0) return
 
-      blockProjects.forEach(p => {
+      const projects = blockProjects.map(p => {
         const matchedStaff = data.filter(tk => {
           const isRetired = tk.trangThai === 'Đã nghỉ việc' || tk.trangThai === 'Nghỉ việc'
           if (isRetired) return false
           return (tk.duAn || '').trim().toLowerCase() === p.name.trim().toLowerCase()
         })
 
-        if (matchedStaff.length === 0) {
-          rows.push({ duAn: block.name, nganKho: p.name, isEmpty: true })
-        } else {
-          matchedStaff.forEach(tk => {
-            rows.push({
-              duAn: block.name,
-              nganKho: p.name,
-              maNV: tk.maNV,
-              hoTen: tk.hoTen,
-              chucVu: tk.chucVu,
-              soDienThoai: tk.soDienThoai
-            })
-          })
+        return {
+          name: p.name,
+          staff: matchedStaff.map(tk => ({
+            maNV: tk.maNV,
+            hoTen: tk.hoTen,
+            chucVu: tk.chucVu,
+            soDienThoai: tk.soDienThoai
+          }))
         }
       })
+
+      blocksData.push({ name: block.name, projects })
     })
 
-    if (rows.length === 0) {
+    if (blocksData.length === 0) {
       alert('Không có dữ liệu để xuất Excel.')
       return
     }
 
-    exportDinhBienTheoNganKho(rows)
+    exportDinhBienTheoNganKho(blocksData)
   }
 
   return (

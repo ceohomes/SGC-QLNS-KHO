@@ -222,41 +222,27 @@ export async function exportThuKhoExcel(data) {
   }
 }
 
-// Xuất Excel danh sách Định biên: nhóm theo Dự án (khối) -> Ngăn kho (dự án con) -> Danh sách thủ kho tương ứng
-// rows: mảng phẳng { duAn, nganKho, maNV, hoTen, chucVu, soDienThoai, ghiChu }
-export async function exportDinhBienTheoNganKho(rows) {
-  if (!rows || rows.length === 0) return;
+// Xuất Excel danh sách Định biên dạng cây có thể thu gọn/mở rộng (Excel Group/Outline):
+// Mỗi Dự án (khối) là 1 dòng chính (cấp 0) -> mỗi Ngăn kho là 1 dòng chính con (cấp 1) -> mỗi thủ kho là 1 dòng chi tiết (cấp 2)
+// blocksData: [{ name: 'Tên Dự án', projects: [{ name: 'Tên Ngăn kho', staff: [{ maNV, hoTen, chucVu, soDienThoai }] }] }]
+export async function exportDinhBienTheoNganKho(blocksData) {
+  if (!blocksData || blocksData.length === 0) return;
 
   try {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Định biên theo Ngăn kho');
 
+    // Cho phép nút thu gọn (-) hiển thị ở dòng cha (phía trên nhóm chi tiết) thay vì phía dưới
+    worksheet.properties.outlineProperties = { summaryBelow: false, summaryRight: false };
+
     worksheet.columns = [
       { header: 'STT', key: 'stt', width: 8 },
-      { header: 'Dự án', key: 'duAn', width: 28 },
-      { header: 'Ngăn kho', key: 'nganKho', width: 36 },
+      { header: 'Dự án / Ngăn kho / Thủ kho', key: 'label', width: 42 },
       { header: 'Mã NV', key: 'maNV', width: 14 },
       { header: 'Họ và tên', key: 'hoTen', width: 26 },
       { header: 'Chức danh', key: 'chucVu', width: 22 },
       { header: 'Điện thoại di động', key: 'soDienThoai', width: 20 }
     ];
-
-    rows.forEach((item, idx) => {
-      worksheet.addRow({
-        stt: idx + 1,
-        duAn: item.duAn,
-        nganKho: item.nganKho,
-        maNV: item.maNV || '',
-        hoTen: item.hoTen || (item.isEmpty ? 'Chưa có thủ kho' : ''),
-        chucVu: item.chucVu || '',
-        soDienThoai: item.soDienThoai || ''
-      });
-    });
-
-    worksheet.autoFilter = {
-      from: { row: 1, column: 1 },
-      to: { row: 1, column: worksheet.columns.length }
-    };
 
     const headerRow = worksheet.getRow(1);
     headerRow.height = 32;
@@ -272,45 +258,81 @@ export async function exportDinhBienTheoNganKho(rows) {
       };
     });
 
-    let lastDuAn = null;
-    worksheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return;
-      row.height = 24;
-      const duAnCell = row.getCell(2);
-      const isNewGroup = duAnCell.value !== lastDuAn;
-      lastDuAn = duAnCell.value;
-      const bg = isNewGroup ? 'EFF6FF' : (rowNumber % 2 === 0 ? 'F8FAFC' : 'FFFFFF');
+    let staffCounter = 0;
 
-      row.eachCell((cell, colNumber) => {
-        const headerKey = worksheet.columns[colNumber - 1].key;
-        let fontColor = '1B1919';
-        let isBold = false;
+    blocksData.forEach((block) => {
+      // Dòng chính: Dự án (khối) - cấp 0, luôn hiển thị (không thu gọn dòng này)
+      const totalStaffInBlock = block.projects.reduce((s, p) => s + (p.staff ? p.staff.length : 0), 0);
+      const blockRow = worksheet.addRow({
+        stt: '',
+        label: `${block.name} (${block.projects.length} ngăn kho · ${totalStaffInBlock} thủ kho)`,
+        maNV: '', hoTen: '', chucVu: '', soDienThoai: ''
+      });
+      blockRow.outlineLevel = 0;
+      blockRow.height = 26;
+      blockRow.eachCell((cell) => {
+        cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '0F58A7' } };
+      });
 
-        if (headerKey === 'maNV') {
-          fontColor = '0F58A7';
-          isBold = true;
-        } else if (headerKey === 'hoTen') {
-          isBold = true;
-          if (!cell.value) fontColor = '94A3B8';
-        } else if (headerKey === 'duAn') {
-          isBold = true;
-          fontColor = '0F58A7';
-        } else if (headerKey === 'nganKho') {
-          isBold = true;
+      block.projects.forEach((project) => {
+        const staffList = project.staff || [];
+        // Dòng chính: Ngăn kho - cấp 1 (thuộc nhóm của dòng Dự án phía trên, sẽ ẩn/hiện cùng nhóm)
+        const projectRow = worksheet.addRow({
+          stt: '',
+          label: `      ${project.name} (${staffList.length} thủ kho)`,
+          maNV: '', hoTen: '', chucVu: '', soDienThoai: ''
+        });
+        projectRow.outlineLevel = 1;
+        projectRow.height = 23;
+        projectRow.eachCell((cell) => {
+          cell.font = { name: 'Arial', size: 10.5, bold: true, color: { argb: '0F58A7' } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EFF6FF' } };
+        });
+
+        if (staffList.length === 0) {
+          const emptyRow = worksheet.addRow({
+            stt: '', label: '            Chưa có thủ kho', maNV: '', hoTen: '', chucVu: '', soDienThoai: ''
+          });
+          emptyRow.outlineLevel = 2;
+          emptyRow.height = 20;
+          emptyRow.eachCell((cell) => {
+            cell.font = { name: 'Arial', size: 10, italic: true, color: { argb: '94A3B8' } };
+          });
+        } else {
+          staffList.forEach((tk) => {
+            staffCounter++;
+            const staffRow = worksheet.addRow({
+              stt: staffCounter,
+              label: `            ${tk.hoTen || ''}`,
+              maNV: tk.maNV || '',
+              hoTen: tk.hoTen || '',
+              chucVu: tk.chucVu || '',
+              soDienThoai: tk.soDienThoai || ''
+            });
+            staffRow.outlineLevel = 2;
+            staffRow.height = 20;
+            staffRow.eachCell((cell, colNumber) => {
+              const headerKey = worksheet.columns[colNumber - 1].key;
+              cell.font = {
+                name: 'Arial', size: 10,
+                bold: headerKey === 'maNV' || headerKey === 'hoTen',
+                color: { argb: headerKey === 'maNV' ? '0F58A7' : '1B1919' }
+              };
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: staffCounter % 2 === 0 ? 'F8FAFC' : 'FFFFFF' } };
+              cell.alignment = {
+                vertical: 'middle',
+                horizontal: ['stt', 'maNV', 'chucVu', 'soDienThoai'].includes(headerKey) ? 'center' : 'left'
+              };
+              cell.border = {
+                top: { style: 'thin', color: { argb: 'E2E8F0' } },
+                left: { style: 'thin', color: { argb: 'CBD5E1' } },
+                bottom: { style: 'thin', color: { argb: 'E2E8F0' } },
+                right: { style: 'thin', color: { argb: 'CBD5E1' } }
+              };
+            });
+          });
         }
-
-        cell.font = { name: 'Arial', size: 10, bold: isBold, color: { argb: fontColor } };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-        cell.alignment = {
-          vertical: 'middle',
-          horizontal: ['stt', 'maNV', 'chucVu', 'soDienThoai'].includes(headerKey) ? 'center' : 'left'
-        };
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'E2E8F0' } },
-          left: { style: 'thin', color: { argb: 'CBD5E1' } },
-          bottom: { style: 'thin', color: { argb: 'E2E8F0' } },
-          right: { style: 'thin', color: { argb: 'CBD5E1' } }
-        };
       });
     });
 
