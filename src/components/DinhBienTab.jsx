@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { 
   ClipboardList, Search, RefreshCw, Calendar, Check, AlertCircle, 
-  Copy, ChevronDown, ChevronUp, Users, TrendingUp, Info, HelpCircle,
+  Copy, ChevronDown, ChevronUp, ChevronRight, Users, TrendingUp, Info, HelpCircle,
   TrendingDown, ArrowLeftRight, Database, Table, PlusCircle, X
 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
@@ -37,6 +37,7 @@ export default function DinhBienTab({ data = [], onReload }) {
   const [selectedYear, setSelectedYear] = useState(getInitialYear())
   const [searchQuery, setSearchQuery] = useState('')
   const [blocks, setBlocks] = useState([])
+  const [collapsedBlocks, setCollapsedBlocks] = useState({}) // { [blockId]: true } = đang thu gọn (mặc định thu gọn theo nhóm Dự án)
   const [quotas, setQuotas] = useState([]) // { id, project_name, month, quota }
   const [localQuotas, setLocalQuotas] = useState({}) // { [project_name.toLowerCase()]: { [monthStr]: quota_number } }
   const [originalLocalQuotas, setOriginalLocalQuotas] = useState({}) // Để so sánh thay đổi chưa lưu
@@ -891,38 +892,50 @@ export default function DinhBienTab({ data = [], onReload }) {
                   if (blockProjects.length === 0) return null
 
                   const blockTotalActual = blockProjects.reduce((sum, p) => sum + (p.actual || 0), 0)
+                  const isCollapsed = collapsedBlocks[block.id] !== false
 
                   return (
                     <React.Fragment key={block.id}>
-                      {/* Tiêu đề nhóm Khối */}
-                      <tr style={{ backgroundColor: block.badgeBg || block.badge_bg || block.bgColor || block.bg_color || '#f1f5f9', borderBottom: '1.5px solid ' + (block.borderColor || block.border_color || '#cbd5e1') }}>
-                        <td colSpan="14" style={{ padding: '10px 14px', fontSize: 12, fontWeight: 800, color: block.color || '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                            <span>
-                              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: block.color || '#475569', marginRight: 8 }} />
-                              {block.name}
-                              <span style={{ fontWeight: 600, opacity: 0.75, marginLeft: 6, textTransform: 'none', letterSpacing: 'normal' }}>
-                                · {blockProjects.length} ngăn kho
-                              </span>
+                      {/* Tiêu đề nhóm Khối - Bấm để thu gọn/mở rộng chi tiết ngăn kho */}
+                      <tr
+                        onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: !isCollapsed }))}
+                        title={isCollapsed ? 'Bấm để xem chi tiết các ngăn kho' : 'Bấm để thu gọn nhóm dự án'}
+                        style={{
+                          backgroundColor: block.badgeBg || block.badge_bg || block.bgColor || block.bg_color || '#f1f5f9',
+                          borderBottom: '1.5px solid ' + (block.borderColor || block.border_color || '#cbd5e1'),
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 800, color: block.color || '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            {isCollapsed ? <ChevronRight size={14} style={{ marginRight: 6, flexShrink: 0 }} /> : <ChevronDown size={14} style={{ marginRight: 6, flexShrink: 0 }} />}
+                            <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: block.color || '#475569', marginRight: 8, flexShrink: 0 }} />
+                            {block.name}
+                            <span style={{ fontWeight: 600, opacity: 0.75, marginLeft: 6, textTransform: 'none', letterSpacing: 'normal' }}>
+                              · {blockProjects.length} ngăn kho
                             </span>
-                            <span style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 4,
-                              fontSize: 11.5, fontWeight: 800,
-                              color: block.color || '#475569',
-                              background: 'rgba(255,255,255,0.6)',
-                              border: `1px solid ${block.color || '#cbd5e1'}55`,
-                              borderRadius: '12px', padding: '2px 10px',
-                              textTransform: 'none', letterSpacing: 'normal'
-                            }}>
-                              <Users size={11} />
-                              Tổng: {blockTotalActual}
-                            </span>
-                          </div>
+                          </span>
                         </td>
+                        <td style={{ padding: '10px 4px', textAlign: 'center' }}>
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                            fontSize: 11.5, fontWeight: 800,
+                            color: block.color || '#475569',
+                            background: 'rgba(255,255,255,0.6)',
+                            border: `1px solid ${block.color || '#cbd5e1'}55`,
+                            borderRadius: '12px', padding: '2px 8px',
+                            textTransform: 'none', letterSpacing: 'normal',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            <Users size={11} />
+                            {blockTotalActual}
+                          </span>
+                        </td>
+                        <td colSpan="12" style={{ padding: '10px 14px' }} />
                       </tr>
 
-                      {/* Các dự án thuộc khối */}
-                      {blockProjects.map(p => {
+                      {/* Các dự án thuộc khối - chỉ hiển thị khi nhóm đang được mở rộng */}
+                      {!isCollapsed && blockProjects.map(p => {
                         const projectQuotas = localQuotas[p.name.toLowerCase()] || {}
                         const origProjectQuotas = originalLocalQuotas[p.name.toLowerCase()] || {}
                         
