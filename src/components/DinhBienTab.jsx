@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { 
   ClipboardList, Search, RefreshCw, Calendar, Check, AlertCircle, 
   Copy, ChevronDown, ChevronUp, ChevronRight, Users, TrendingUp, Info, HelpCircle,
-  TrendingDown, ArrowLeftRight, Database, Table, PlusCircle, X
+  TrendingDown, ArrowLeftRight, Database, Table, PlusCircle, X, Layers
 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import useEscapeKey from '../hooks/useEscapeKey'
@@ -512,6 +512,9 @@ export default function DinhBienTab({ data = [], onReload }) {
     }
   }
 
+  // Trạng thái tổng: true nếu tất cả các nhóm Dự án đang thu gọn (chưa có nhóm nào được mở chi tiết)
+  const isAllBlocksCollapsed = blocks.every(b => collapsedBlocks[b.id] !== false)
+
   return (
     <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
       
@@ -749,38 +752,42 @@ export default function DinhBienTab({ data = [], onReload }) {
               </select>
             </div>
 
-            {/* Copy button from previous year */}
-            <button
-              onClick={handleCopyFromPreviousYear}
-              title="Nhấn để tự động sao chép định biên của năm trước sang năm nay"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '7px 12px',
-                borderRadius: '8px',
-                fontSize: 12.5,
-                fontWeight: 700,
-                color: '#475569',
-                backgroundColor: '#ffffff',
-                border: '1.5px solid #cbd5e1',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.borderColor = '#0f58a7'
-                e.currentTarget.style.color = '#0f58a7'
-                e.currentTarget.style.backgroundColor = '#f0f9ff'
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.borderColor = '#cbd5e1'
-                e.currentTarget.style.color = '#475569'
-                e.currentTarget.style.backgroundColor = '#ffffff'
-              }}
-            >
-              <Copy size={14} />
-              <span>Sao chép năm trước</span>
-            </button>
+            {/* Xem theo nhóm / Xem chi tiết - thu gọn hoặc mở rộng toàn bộ nhóm dự án cùng lúc */}
+            <div style={{ display: 'flex', background: '#f1f5f9', border: '1.5px solid #cbd5e1', borderRadius: '10px', padding: '3px', gap: '3px' }}>
+              <button
+                type="button"
+                onClick={() => setCollapsedBlocks(blocks.reduce((acc, b) => { acc[b.id] = true; return acc }, {}))}
+                title="Thu gọn tất cả, chỉ hiển thị theo từng nhóm Dự án"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '6px 12px', borderRadius: '7px', fontSize: '12.5px', fontWeight: 700,
+                  background: isAllBlocksCollapsed ? '#0f58a7' : 'transparent',
+                  color: isAllBlocksCollapsed ? '#ffffff' : '#64748b',
+                  boxShadow: isAllBlocksCollapsed ? '0 1px 3px rgba(15,88,167,0.25)' : 'none',
+                  cursor: 'pointer', border: 'none', transition: 'all 0.15s ease'
+                }}
+              >
+                <Layers size={14} />
+                <span>Xem theo nhóm</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCollapsedBlocks(blocks.reduce((acc, b) => { acc[b.id] = false; return acc }, {}))}
+                title="Mở rộng tất cả, hiển thị chi tiết từng ngăn kho"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '6px 12px', borderRadius: '7px', fontSize: '12.5px', fontWeight: 700,
+                  background: !isAllBlocksCollapsed ? '#0f58a7' : 'transparent',
+                  color: !isAllBlocksCollapsed ? '#ffffff' : '#64748b',
+                  boxShadow: !isAllBlocksCollapsed ? '0 1px 3px rgba(15,88,167,0.25)' : 'none',
+                  cursor: 'pointer', border: 'none', transition: 'all 0.15s ease'
+                }}
+              >
+                <Table size={14} />
+                <span>Xem chi tiết</span>
+              </button>
+            </div>
+
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
