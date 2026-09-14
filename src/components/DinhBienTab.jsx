@@ -2,10 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { 
   ClipboardList, Search, RefreshCw, Calendar, Check, AlertCircle, 
   Copy, ChevronDown, ChevronUp, ChevronRight, Users, TrendingUp, Info, HelpCircle,
-  TrendingDown, ArrowLeftRight, Database, Table, PlusCircle, X, Layers
+  TrendingDown, ArrowLeftRight, Database, Table, PlusCircle, X, Layers, Download
 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import useEscapeKey from '../hooks/useEscapeKey'
+import { exportDinhBienTheoNganKho } from '../excelExporter.js'
 
 const SQL_CODE_DINH_BIEN = `-- -------------------------------------------------------------
 -- TẠO BẢNG ĐỊNH BIÊN NHÂN SỰ HÀNG THÁNG (sgc_dinh_bien_nhan_su)
@@ -515,6 +516,49 @@ export default function DinhBienTab({ data = [], onReload }) {
   // Trạng thái tổng: true nếu tất cả các nhóm Dự án đang thu gọn (chưa có nhóm nào được mở chi tiết)
   const isAllBlocksCollapsed = blocks.every(b => collapsedBlocks[b.id] !== false)
 
+  // Thứ tự hiển thị các nhóm Dự án: dùng đúng thứ tự đã cấu hình & lưu ở sheet "Danh sách theo dự án"
+  // (tức thứ tự sort_order gốc từ Supabase, KHÔNG tự sắp xếp lại theo A-Z hay theo thứ tự riêng ở trang này nữa)
+  const orderedBlocks = blocks
+
+  // Xuất Excel: Danh sách theo Dự án -> Ngăn kho tương ứng -> Danh sách thủ kho theo ngăn kho tương ứng
+  const handleExportExcel = () => {
+    const rows = []
+    orderedBlocks.forEach(block => {
+      const blockProjects = filteredProjectDinhBienData.filter(p => p.blockId === block.id)
+      if (blockProjects.length === 0) return
+
+      blockProjects.forEach(p => {
+        const matchedStaff = data.filter(tk => {
+          const isRetired = tk.trangThai === 'Đã nghỉ việc' || tk.trangThai === 'Nghỉ việc'
+          if (isRetired) return false
+          return (tk.duAn || '').trim().toLowerCase() === p.name.trim().toLowerCase()
+        })
+
+        if (matchedStaff.length === 0) {
+          rows.push({ duAn: block.name, nganKho: p.name, isEmpty: true })
+        } else {
+          matchedStaff.forEach(tk => {
+            rows.push({
+              duAn: block.name,
+              nganKho: p.name,
+              maNV: tk.maNV,
+              hoTen: tk.hoTen,
+              chucVu: tk.chucVu,
+              soDienThoai: tk.soDienThoai
+            })
+          })
+        }
+      })
+    })
+
+    if (rows.length === 0) {
+      alert('Không có dữ liệu để xuất Excel.')
+      return
+    }
+
+    exportDinhBienTheoNganKho(rows)
+  }
+
   return (
     <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
       
@@ -550,6 +594,23 @@ export default function DinhBienTab({ data = [], onReload }) {
 
         {/* Info Metrics + Database indicators */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          {/* Xuất Excel: Danh sách theo Dự án, Ngăn kho tương ứng và Danh sách thủ kho theo ngăn kho tương ứng */}
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            title="Xuất Excel danh sách theo Dự án, Ngăn kho và Thủ kho tương ứng"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '9px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+              background: '#059669', color: '#ffffff', border: 'none',
+              cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(5,150,105,0.2)',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <Download size={15} />
+            <span>Xuất Excel</span>
+          </button>
+
           {/* 4 Compact KPIs */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {/* Metric 0: Tổng Dự án (số nhóm khối/dự án) */}
@@ -893,14 +954,8 @@ export default function DinhBienTab({ data = [], onReload }) {
                 </tr>
               </thead>
               <tbody>
-                {/* Chúng ta nhóm các hàng theo Khối Thi Công để người dùng dễ theo dõi - sắp xếp theo thứ tự A,B,C, riêng "Chưa phân bổ" luôn ở cuối */}
-                {[...blocks].sort((a, b) => {
-                  const aIsUnassigned = (a.name || '').toLowerCase().includes('chưa phân bổ')
-                  const bIsUnassigned = (b.name || '').toLowerCase().includes('chưa phân bổ')
-                  if (aIsUnassigned && !bIsUnassigned) return 1
-                  if (!aIsUnassigned && bIsUnassigned) return -1
-                  return (a.name || '').localeCompare(b.name || '', 'vi')
-                }).map(block => {
+                {/* Chúng ta nhóm các hàng theo Khối Thi Công để người dùng dễ theo dõi - đúng theo thứ tự đã cấu hình ở sheet "Danh sách theo dự án" */}
+                {orderedBlocks.map(block => {
                   const blockProjects = filteredProjectDinhBienData.filter(p => p.blockId === block.id)
                   if (blockProjects.length === 0) return null
 

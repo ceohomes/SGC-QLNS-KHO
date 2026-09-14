@@ -222,3 +222,108 @@ export async function exportThuKhoExcel(data) {
   }
 }
 
+// Xuất Excel danh sách Định biên: nhóm theo Dự án (khối) -> Ngăn kho (dự án con) -> Danh sách thủ kho tương ứng
+// rows: mảng phẳng { duAn, nganKho, maNV, hoTen, chucVu, soDienThoai, ghiChu }
+export async function exportDinhBienTheoNganKho(rows) {
+  if (!rows || rows.length === 0) return;
+
+  try {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Định biên theo Ngăn kho');
+
+    worksheet.columns = [
+      { header: 'STT', key: 'stt', width: 8 },
+      { header: 'Dự án', key: 'duAn', width: 28 },
+      { header: 'Ngăn kho', key: 'nganKho', width: 36 },
+      { header: 'Mã NV', key: 'maNV', width: 14 },
+      { header: 'Họ và tên', key: 'hoTen', width: 26 },
+      { header: 'Chức danh', key: 'chucVu', width: 22 },
+      { header: 'Điện thoại di động', key: 'soDienThoai', width: 20 }
+    ];
+
+    rows.forEach((item, idx) => {
+      worksheet.addRow({
+        stt: idx + 1,
+        duAn: item.duAn,
+        nganKho: item.nganKho,
+        maNV: item.maNV || '',
+        hoTen: item.hoTen || (item.isEmpty ? 'Chưa có thủ kho' : ''),
+        chucVu: item.chucVu || '',
+        soDienThoai: item.soDienThoai || ''
+      });
+    });
+
+    worksheet.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: worksheet.columns.length }
+    };
+
+    const headerRow = worksheet.getRow(1);
+    headerRow.height = 32;
+    headerRow.eachCell((cell) => {
+      cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '0F58A7' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      cell.border = {
+        top: { style: 'thin', color: { argb: '1062B8' } },
+        left: { style: 'thin', color: { argb: '1062B8' } },
+        bottom: { style: 'medium', color: { argb: '0c4685' } },
+        right: { style: 'thin', color: { argb: '1062B8' } }
+      };
+    });
+
+    let lastDuAn = null;
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      row.height = 24;
+      const duAnCell = row.getCell(2);
+      const isNewGroup = duAnCell.value !== lastDuAn;
+      lastDuAn = duAnCell.value;
+      const bg = isNewGroup ? 'EFF6FF' : (rowNumber % 2 === 0 ? 'F8FAFC' : 'FFFFFF');
+
+      row.eachCell((cell, colNumber) => {
+        const headerKey = worksheet.columns[colNumber - 1].key;
+        let fontColor = '1B1919';
+        let isBold = false;
+
+        if (headerKey === 'maNV') {
+          fontColor = '0F58A7';
+          isBold = true;
+        } else if (headerKey === 'hoTen') {
+          isBold = true;
+          if (!cell.value) fontColor = '94A3B8';
+        } else if (headerKey === 'duAn') {
+          isBold = true;
+          fontColor = '0F58A7';
+        } else if (headerKey === 'nganKho') {
+          isBold = true;
+        }
+
+        cell.font = { name: 'Arial', size: 10, bold: isBold, color: { argb: fontColor } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+        cell.alignment = {
+          vertical: 'middle',
+          horizontal: ['stt', 'maNV', 'chucVu', 'soDienThoai'].includes(headerKey) ? 'center' : 'left'
+        };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'E2E8F0' } },
+          left: { style: 'thin', color: { argb: 'CBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'E2E8F0' } },
+          right: { style: 'thin', color: { argb: 'CBD5E1' } }
+        };
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'Dinh_Bien_Theo_Ngan_Kho_SGC_Export.xlsx';
+    anchor.click();
+    window.URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('Lỗi khi xuất tệp Excel định biên theo ngăn kho:', err);
+  }
+}
+
