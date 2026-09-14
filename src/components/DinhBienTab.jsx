@@ -893,8 +893,14 @@ export default function DinhBienTab({ data = [], onReload }) {
                 </tr>
               </thead>
               <tbody>
-                {/* Chúng ta nhóm các hàng theo Khối Thi Công để người dùng dễ theo dõi */}
-                {blocks.map(block => {
+                {/* Chúng ta nhóm các hàng theo Khối Thi Công để người dùng dễ theo dõi - sắp xếp theo thứ tự A,B,C, riêng "Chưa phân bổ" luôn ở cuối */}
+                {[...blocks].sort((a, b) => {
+                  const aIsUnassigned = (a.name || '').toLowerCase().includes('chưa phân bổ')
+                  const bIsUnassigned = (b.name || '').toLowerCase().includes('chưa phân bổ')
+                  if (aIsUnassigned && !bIsUnassigned) return 1
+                  if (!aIsUnassigned && bIsUnassigned) return -1
+                  return (a.name || '').localeCompare(b.name || '', 'vi')
+                }).map(block => {
                   const blockProjects = filteredProjectDinhBienData.filter(p => p.blockId === block.id)
                   if (blockProjects.length === 0) return null
 

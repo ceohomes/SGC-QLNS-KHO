@@ -583,7 +583,9 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
       if (!projName || projName === 'none' || projName === '—' || !isKnown) {
         unassignedColumn.count++
       } else {
-        const found = projectsList.find(p => p.name && p.name.toLowerCase() === projName.toLowerCase())
+        // Chỉ tìm khớp trong các dự án được cấu hình thực tế (bỏ qua 2 cột đặc biệt "Chưa phân bổ"/"Đã nghỉ việc"),
+        // để tránh đếm nhầm vào cột "Chưa phân bổ" đặc biệt khi có 1 dự án thật cũng được đặt tên trùng "Chưa phân bổ"
+        const found = projectsList.find(p => p.id !== 'UNASSIGNED' && p.id !== 'RETIRED' && p.name && p.name.toLowerCase() === projName.toLowerCase())
         if (found) {
           found.count++
         } else {
