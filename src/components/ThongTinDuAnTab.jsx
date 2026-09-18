@@ -4,6 +4,24 @@ import CustomAlert from './CustomAlert'
 import { supabase } from '../supabaseClient'
 import ExcelJS from 'exceljs'
 
+// Bảng màu để gán màu riêng cho từng Chuyên viên hậu kiểm (CV hậu kiểm) — tự động
+// chọn màu dựa theo họ tên (hash), giúp phân biệt trực quan mà không cần lưu thêm cột màu.
+const CB_HAU_KIEM_COLORS = [
+  '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#10b981',
+  '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6',
+  '#a855f7', '#d946ef', '#ec4899', '#f43f5e'
+]
+
+const getCbHauKiemColor = (hoTen) => {
+  const str = (hoTen || '').trim()
+  if (!str) return '#94a3b8'
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) >>> 0
+  }
+  return CB_HAU_KIEM_COLORS[hash % CB_HAU_KIEM_COLORS.length]
+}
+
 const SQL_CODE = `-- -------------------------------------------------------------
 -- 1. TẠO BẢNG DANH SÁCH THỦ KHO (Để lưu trữ thông tin nhân sự và dự án liên kết)
 -- Bảng này đã có sẵn trong hệ thống của bạn, dưới đây là định nghĩa để tham khảo 
@@ -1572,19 +1590,27 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      {effectiveSelectedBlock.canBoHauKiem && (
+                        <span style={{
+                          width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                          background: getCbHauKiemColor(effectiveSelectedBlock.canBoHauKiem)
+                        }} />
+                      )}
                       <select
                         value={effectiveSelectedBlock.canBoHauKiem || ''}
                         onChange={(e) => handleAssignCbHauKiem(effectiveSelectedBlock.id, e.target.value)}
                         title="Chọn Chuyên viên hậu kiểm phụ trách khối này"
                         style={{
                           padding: '7px 10px', borderRadius: 10, fontSize: 12.5, fontWeight: 600,
-                          background: '#ffffff', color: '#334155', border: `1.5px solid ${selColors.borderColor}`,
+                          background: '#ffffff',
+                          color: effectiveSelectedBlock.canBoHauKiem ? getCbHauKiemColor(effectiveSelectedBlock.canBoHauKiem) : '#334155',
+                          border: `1.5px solid ${selColors.borderColor}`,
                           cursor: 'pointer', maxWidth: 200
                         }}
                       >
-                        <option value="">— Chưa gán CV hậu kiểm —</option>
+                        <option value="" style={{ color: '#334155' }}>— Chưa gán CV hậu kiểm —</option>
                         {canBoHauKiemList.map(cb => (
-                          <option key={cb.id} value={cb.ho_ten}>{cb.ho_ten}</option>
+                          <option key={cb.id} value={cb.ho_ten} style={{ color: getCbHauKiemColor(cb.ho_ten) }}>{cb.ho_ten}</option>
                         ))}
                       </select>
                     </div>
@@ -2208,8 +2234,12 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                         padding: '9px 12px', fontSize: 12.5,
                         borderBottom: idx < canBoHauKiemList.length - 1 ? '1px solid #f1f5f9' : 'none'
                       }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, color: '#0f172a' }}>{cb.ho_ten}</div>
+                        <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{
+                            width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                            background: getCbHauKiemColor(cb.ho_ten)
+                          }} />
+                          <div style={{ fontWeight: 700, color: getCbHauKiemColor(cb.ho_ten) }}>{cb.ho_ten}</div>
                         </div>
                         <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                           <button
