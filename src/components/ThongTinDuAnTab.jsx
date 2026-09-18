@@ -1212,6 +1212,23 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
             )}
           </div>
 
+          {/* Nút Danh sách CV hậu kiểm */}
+          <button
+            onClick={() => { openAddCbHauKiem(); setIsCbHauKiemListModalOpen(true) }}
+            title="Xem / quản lý danh sách Chuyên viên hậu kiểm"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+              background: '#ffffff', color: '#475569', border: '1.5px solid #cbd5e1', cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.borderColor = '#0050b3'; e.currentTarget.style.color = '#0050b3' }}
+            onMouseOut={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.color = '#475569' }}
+          >
+            <UserCheck size={15} />
+            <span>CV hậu kiểm</span>
+          </button>
+
           {/* Nút Tạo công cụ Up nhiều ngăn kho */}
           <button
             onClick={openBulkImportModal}
@@ -1469,24 +1486,11 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                           cursor: 'pointer', maxWidth: 200
                         }}
                       >
-                        <option value="">— Chưa gán CB hậu kiểm —</option>
+                        <option value="">— Chưa gán CV hậu kiểm —</option>
                         {canBoHauKiemList.map(cb => (
                           <option key={cb.id} value={cb.ho_ten}>{cb.ho_ten}</option>
                         ))}
                       </select>
-                      <button
-                        onClick={() => { openAddCbHauKiem(); setIsCbHauKiemListModalOpen(true) }}
-                        title="Xem / quản lý danh sách Chuyên viên hậu kiểm"
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 6,
-                          padding: '8px 14px', borderRadius: 10, fontSize: 12.5, fontWeight: 700,
-                          background: '#ffffff', color: '#475569', border: '1.5px solid #cbd5e1',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <UserCheck size={14} />
-                        <span>CB hậu kiểm</span>
-                      </button>
                     </div>
 
                     <button
@@ -2050,7 +2054,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                 background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: 10
               }}>
                 <span style={{ fontSize: 12, fontWeight: 800, color: '#475569' }}>
-                  {editingCbHauKiem ? 'SỬA THÔNG TIN CB HẬU KIỂM' : 'THÊM CB HẬU KIỂM MỚI'}
+                  {editingCbHauKiem ? 'SỬA THÔNG TIN CV HẬU KIỂM' : 'THÊM CV HẬU KIỂM MỚI'}
                 </span>
                 <input
                   type="text"
