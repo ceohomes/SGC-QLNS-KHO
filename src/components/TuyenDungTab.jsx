@@ -288,6 +288,34 @@ export const DEFAULT_REAL_CANDIDATES = [
   }
 ]
 
+// Hàm kiểm tra 2 hồ sơ có phải là cùng 1 ứng viên hay không (đối soát qua id gốc, id ánh xạ Supabase, URL GitHub/tệp, hoặc họ tên + SĐT/tệp)
+export function isSameCandidate(a, b, idRemap = null) {
+  if (!a || !b) return false
+  // 1. Trùng khớp id trực tiếp
+  if (a.id && b.id && a.id === b.id) return true
+  // 2. Trùng khớp qua bảng ánh xạ ID Supabase (id tạm -> id UUID thật)
+  if (idRemap) {
+    const aCanonical = idRemap.get(a.id) || a.id
+    const bCanonical = idRemap.get(b.id) || b.id
+    if (aCanonical && bCanonical && aCanonical === bCanonical) return true
+  }
+  // 3. Trùng URL GitHub của tệp CV đã tải lên
+  if (a.githubUrl && b.githubUrl && a.githubUrl === b.githubUrl) return true
+  if (a.fileUrl && b.fileUrl && a.fileUrl === b.fileUrl) return true
+  // 4. Trùng tên tệp đã tải lên (đặc biệt tên có timestamp) và trùng họ tên
+  if (a.fileName && b.fileName && a.fileName === b.fileName) {
+    if (!a.hoTen || !b.hoTen) return true
+    if (a.hoTen.trim().toLowerCase() === b.hoTen.trim().toLowerCase()) return true
+  }
+  // 5. Trùng SĐT và họ tên
+  const phoneA = String(a.soDienThoai || '').replace(/\D/g, '')
+  const phoneB = String(b.soDienThoai || '').replace(/\D/g, '')
+  if (phoneA && phoneB && phoneA.length >= 9 && phoneA === phoneB && a.hoTen && b.hoTen) {
+    if (a.hoTen.trim().toLowerCase() === b.hoTen.trim().toLowerCase()) return true
+  }
+  return false
+}
+
 export default function TuyenDungTab({
   existingThuKhoData,
   onRecruitSuccess,
@@ -306,8 +334,14 @@ export default function TuyenDungTab({
         const parsed = JSON.parse(saved)
         if (Array.isArray(parsed)) {
           const validCandidates = parsed.filter(c => c && c.hoTen && c.id && c.id !== 'rec-000')
-          // Chỉ trả về mảng rỗng nếu người dùng đã chủ động xóa hết (đã từng khởi tạo trước đó)
-          return validCandidates.map(normalizeCandidate)
+          // Khử trùng lặp nếu dữ liệu cũ trong localStorage từng bị nhân đôi dòng
+          const deduplicated = []
+          for (const cand of validCandidates) {
+            if (!deduplicated.some(d => isSameCandidate(d, cand, null))) {
+              deduplicated.push(cand)
+            }
+          }
+          return deduplicated.map(normalizeCandidate)
         }
       }
       if (!hasInitialized) {
@@ -331,6 +365,8 @@ export default function TuyenDungTab({
   // insert trùng lặp khi cùng một lô hồ sơ CV được "onAddCandidates" gọi nhiều lần
   // (VD: tự động lưu khi quét xong, rồi người dùng bấm thêm nút "Lưu vào bảng tuyển dụng").
   const syncedCandidateIdsRef = useRef(new Set())
+  // Bảng ánh xạ ID tạm (client-side) -> ID UUID thật từ Supabase
+  const idRemapRef = useRef(new Map())
 
   // Danh sách dự án thực tế liên thông từ bảng sgc_thong_tin_du_an_projects trên Supabase
   const [dbProjects, setDbProjects] = useState([])
@@ -363,14 +399,45 @@ export default function TuyenDungTab({
   // tạm sang id thật — để trình xem CV vẫn tìm đúng file sau khi tải lại trang.
   const remapTempIdsToRealIds = async (idRemap) => {
     if (!idRemap || idRemap.size === 0) return
-    setCandidates(prev => prev.map(c => idRemap.has(c.id) ? { ...c, id: idRemap.get(c.id) } : c))
+    for (const [tempId, realId] of idRemap.entries()) {
+      idRemapRef.current.set(tempId, realId)
+      idRemapRef.current.set(realId, realId)
+      syncedCandidateIdsRef.current.add(tempId)
+      syncedCandidateIdsRef.current.add(realId)
+    }
+
+    setCandidates(prev => {
+      const merged = []
+      for (const item of prev) {
+        const canonicalId = idRemap.get(item.id) || item.id
+        const itemWithNewId = { ...item, id: canonicalId }
+        const existingIdx = merged.findIndex(m => isSameCandidate(m, itemWithNewId, idRemapRef.current))
+        if (existingIdx >= 0) {
+          merged[existingIdx] = { ...merged[existingIdx], ...itemWithNewId, id: canonicalId }
+        } else {
+          merged.push(itemWithNewId)
+        }
+      }
+      return merged
+    })
+
     try {
       const savedLocal = localStorage.getItem('sgc_tuyen_dung_candidates')
       if (savedLocal) {
         const parsedLocal = JSON.parse(savedLocal)
         if (Array.isArray(parsedLocal)) {
-          const remapped = parsedLocal.map(c => idRemap.has(c.id) ? { ...c, id: idRemap.get(c.id) } : c)
-          localStorage.setItem('sgc_tuyen_dung_candidates', JSON.stringify(remapped))
+          const merged = []
+          for (const item of parsedLocal) {
+            const canonicalId = idRemap.get(item.id) || item.id
+            const itemWithNewId = { ...item, id: canonicalId }
+            const existingIdx = merged.findIndex(m => isSameCandidate(m, itemWithNewId, idRemapRef.current))
+            if (existingIdx >= 0) {
+              merged[existingIdx] = { ...merged[existingIdx], ...itemWithNewId, id: canonicalId }
+            } else {
+              merged.push(itemWithNewId)
+            }
+          }
+          localStorage.setItem('sgc_tuyen_dung_candidates', JSON.stringify(merged))
         }
       }
     } catch (e) {
@@ -443,11 +510,17 @@ export default function TuyenDungTab({
       if (Array.isArray(data)) {
         if (data.length > 0) {
           const mapped = data.map(mapDbToCandidate).map(normalizeCandidate)
-          mapped.forEach(c => syncedCandidateIdsRef.current.add(c.id))
-          setCandidates(mapped)
+          const deduplicated = []
+          for (const cand of mapped) {
+            syncedCandidateIdsRef.current.add(cand.id)
+            if (!deduplicated.some(d => isSameCandidate(d, cand, idRemapRef.current))) {
+              deduplicated.push(cand)
+            }
+          }
+          setCandidates(deduplicated)
           setSupabaseCandidateStatus('connected')
           setSyncError(null)
-          localStorage.setItem('sgc_tuyen_dung_candidates', JSON.stringify(mapped.map(c => {
+          localStorage.setItem('sgc_tuyen_dung_candidates', JSON.stringify(deduplicated.map(c => {
             const { fileDataUrl, ...rest } = c
             return rest
           })))
@@ -1615,16 +1688,30 @@ export default function TuyenDungTab({
           onClose={() => setShowUploadModal(false)}
           positionsList={uniquePositions}
           projectsList={availableProjects}
+          showAlert={showAlert}
           onAddCandidates={async (newItems, shouldCloseModal = true) => {
             if (!newItems || newItems.length === 0) return
 
             setCandidates(prev => {
-              const existingMap = new Map()
-              prev.forEach(item => existingMap.set(item.id, item))
-              newItems.forEach(item => existingMap.set(item.id, item))
-              const updated = Array.from(existingMap.values())
+              const result = [...prev]
+              for (const newItem of newItems) {
+                const matchIndex = result.findIndex(existing => isSameCandidate(existing, newItem, idRemapRef.current))
+                if (matchIndex >= 0) {
+                  const existing = result[matchIndex]
+                  const canonicalId = (existing.id && !existing.id.startsWith('cand-'))
+                    ? existing.id
+                    : (idRemapRef.current.get(newItem.id) || idRemapRef.current.get(existing.id) || existing.id || newItem.id)
+                  result[matchIndex] = {
+                    ...existing,
+                    ...newItem,
+                    id: canonicalId
+                  }
+                } else {
+                  result.unshift(newItem)
+                }
+              }
               try {
-                const lightweight = updated.map(c => {
+                const lightweight = result.map(c => {
                   const { fileDataUrl, ...rest } = c
                   return rest
                 })
@@ -1632,7 +1719,7 @@ export default function TuyenDungTab({
               } catch (e) {
                 console.warn('Lỗi lưu candidates vào localStorage:', e)
               }
-              return updated
+              return result
             })
 
             if (shouldCloseModal) {
@@ -1643,12 +1730,23 @@ export default function TuyenDungTab({
             // Chỉ insert những hồ sơ CHƯA từng được đồng bộ (tránh trùng lặp khi hàm này bị
             // gọi 2 lần cho cùng một lô: 1 lần tự động lưu khi quét xong, 1 lần khi người
             // dùng bấm nút "Lưu vào bảng tuyển dụng").
-            const notYetSynced = newItems.filter(c => !syncedCandidateIdsRef.current.has(c.id))
+            const notYetSynced = newItems.filter(c => {
+              if (syncedCandidateIdsRef.current.has(c.id)) return false
+              const remapped = idRemapRef.current.get(c.id)
+              if (remapped && syncedCandidateIdsRef.current.has(remapped)) return false
+              return true
+            })
+
             if (notYetSynced.length > 0 && supabaseCandidateStatus !== 'not_created') {
               try {
                 const { idRemap } = await insertCandidatesToDb(notYetSynced)
                 notYetSynced.forEach(c => syncedCandidateIdsRef.current.add(c.id))
-                idRemap.forEach(realId => syncedCandidateIdsRef.current.add(realId))
+                idRemap.forEach((realId, tempId) => {
+                  syncedCandidateIdsRef.current.add(tempId)
+                  syncedCandidateIdsRef.current.add(realId)
+                  idRemapRef.current.set(tempId, realId)
+                  idRemapRef.current.set(realId, realId)
+                })
                 await remapTempIdsToRealIds(idRemap)
                 setSyncError(null)
               } catch (dbErr) {
@@ -1788,7 +1886,12 @@ export default function TuyenDungTab({
                 try {
                   const { idRemap } = await insertCandidatesToDb([newCand])
                   syncedCandidateIdsRef.current.add(tempId)
-                  idRemap.forEach(realId => syncedCandidateIdsRef.current.add(realId))
+                  idRemap.forEach((realId, tempIdKey) => {
+                    syncedCandidateIdsRef.current.add(tempIdKey)
+                    syncedCandidateIdsRef.current.add(realId)
+                    idRemapRef.current.set(tempIdKey, realId)
+                    idRemapRef.current.set(realId, realId)
+                  })
                   await remapTempIdsToRealIds(idRemap)
                   setSyncError(null)
                 } catch (dbErr) {
@@ -1941,17 +2044,40 @@ export default function TuyenDungTab({
 // Supports uploading multiple PDF, Word (.docx, .doc), text, images
 // Automatically scans immediately upon file upload/drop with Gemini 3.8 Flash
 // -------------------------------------------------------------
-function AICVUploadModal({ onClose, onAddCandidates, positionsList = [], projectsList = [] }) {
+function AICVUploadModal({ onClose, onAddCandidates, positionsList = [], projectsList = [], showAlert }) {
   const [dragActive, setDragActive] = useState(false)
   const [fileQueue, setFileQueue] = useState([])
   const [isScanning, setIsScanning] = useState(false)
   const [scannedResults, setScannedResults] = useState([])
   const [scanProgress, setScanProgress] = useState(0)
   const fileInputRef = useRef(null)
+  // Ghi nhớ các ID đã gửi sang onAddCandidates để không bị gọi lại 2 lần gây nhân đôi dòng
+  const savedCandidateIdsRef = useRef(new Set())
 
-  const handleModalClose = () => {
-    if (scannedResults.length > 0 && onAddCandidates) {
-      onAddCandidates(scannedResults, true)
+  // Bấm nút "Lưu vào bảng tuyển dụng"
+  const handleSaveAndClose = async () => {
+    const unsaved = scannedResults.filter(r => !savedCandidateIdsRef.current.has(r.id))
+    if (unsaved.length > 0 && onAddCandidates) {
+      unsaved.forEach(r => savedCandidateIdsRef.current.add(r.id))
+      await onAddCandidates(unsaved, true)
+    } else {
+      onClose()
+      if (typeof showAlert === 'function') {
+        showAlert(
+          `Đã lưu và đồng bộ thành công ${scannedResults.length} hồ sơ CV vào danh sách tuyển dụng!`,
+          'success',
+          'Quét CV Thành Công'
+        )
+      }
+    }
+  }
+
+  // Bấm "Đóng" hoặc nút X hoặc ESC
+  const handleModalClose = async () => {
+    const unsaved = scannedResults.filter(r => !savedCandidateIdsRef.current.has(r.id))
+    if (unsaved.length > 0 && onAddCandidates) {
+      unsaved.forEach(r => savedCandidateIdsRef.current.add(r.id))
+      await onAddCandidates(unsaved, true)
     } else {
       onClose()
     }
@@ -2142,6 +2268,8 @@ function AICVUploadModal({ onClose, onAddCandidates, positionsList = [], project
 
     if (newResults.length > 0) {
       setScannedResults(prev => [...prev, ...newResults])
+      // Đánh dấu đã gửi sang onAddCandidates để không bị gửi lại lần 2
+      newResults.forEach(r => savedCandidateIdsRef.current.add(r.id))
       // Tự động lưu ngay vào danh sách tuyển dụng để không bao giờ bị mất dữ liệu
       if (onAddCandidates) {
         onAddCandidates(newResults, false)
@@ -2432,7 +2560,7 @@ function AICVUploadModal({ onClose, onAddCandidates, positionsList = [], project
             </button>
           ) : scannedResults.length > 0 ? (
             <button
-              onClick={() => onAddCandidates(scannedResults, true)}
+              onClick={handleSaveAndClose}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '9px 22px', borderRadius: 10, border: 'none',
@@ -2937,8 +3065,8 @@ function CandidateDetailModal({
       const updated = {
         ...candidate,
         fileName: ghResult?.fileName || file.name,
-        fileUrl: ghResult?.downloadUrl || candidate.fileUrl || '',
-        githubUrl: ghResult?.htmlUrl || candidate.githubUrl || '',
+        fileUrl: ghResult?.downloadUrl || '',
+        githubUrl: ghResult?.htmlUrl || '',
         fileDataUrl: dataUrl
       }
       if (onUpdateCandidate) onUpdateCandidate(updated)
@@ -3541,6 +3669,7 @@ function CandidateDetailModal({
             isLoading={isLoadingPdf}
             onUploadNewPdf={handleUploadPdf}
             onDownload={handleDownloadPdf}
+            onUpdateCandidate={onUpdateCandidate}
           />
         </div>
       </div>

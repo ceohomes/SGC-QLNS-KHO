@@ -154,7 +154,7 @@ export async function onRequestPost({ request, env }) {
     let modelUsed = "heuristic_fallback";
     let cleanText = "{}";
     try {
-      const result = await callGeminiWithFallback(apiKey, parts, SYSTEM_INSTRUCTION, CV_RESPONSE_SCHEMA);
+      const result = await callGeminiWithFallback(apiKey, parts, SYSTEM_INSTRUCTION, CV_RESPONSE_SCHEMA, env);
       cleanText = result.text || "{}";
       modelUsed = result.modelUsed;
     } catch (err) {

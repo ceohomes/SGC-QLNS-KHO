@@ -2,12 +2,25 @@ import React, { useState, useEffect, useRef } from 'react'
 import { 
   ZoomIn, ZoomOut, RotateCw, 
   Download, Printer, ExternalLink, Upload, RefreshCw, 
-  FileText, AlertCircle, CheckCircle2, Sparkles, Eye
+  FileText, AlertCircle, CheckCircle2, Sparkles, Eye,
+  CloudUpload, ShieldAlert
 } from 'lucide-react'
 import * as pdfjsLib from 'pdfjs-dist/build/pdf.mjs'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url'
-import { blobToArrayBuffer, renderCandidateCvToCanvas } from '../pdfStorage.js'
+import { blobToArrayBuffer, renderCandidateCvToCanvas, getCandidatePdf } from '../pdfStorage.js'
 import { apiUrl } from '../apiBase'
+import { supabase } from '../supabaseClient'
+
+// Convert Blob / File to Base64
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    if (typeof blob === 'string') return resolve(blob)
+    const reader = new FileReader()
+    reader.onloadend = () => resolve(reader.result)
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
 
 // Configure worker URL
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker
@@ -130,7 +143,8 @@ export default function CandidatePdfViewer({
   isLoading,
   onUploadNewPdf,
   onDownload,
-  onPrint
+  onPrint,
+  onUpdateCandidate
 }) {
   const [numPages, setNumPages] = useState(1)
   const [zoom, setZoom] = useState(100)
@@ -142,23 +156,114 @@ export default function CandidatePdfViewer({
   const [fallbackImgUrl, setFallbackImgUrl] = useState(null)
   const [fallbackImgUrlP2, setFallbackImgUrlP2] = useState(null)
 
+  const [uploadingToGh, setUploadingToGh] = useState(false)
+  const [ghUploadError, setGhUploadError] = useState('')
+  const [ghUploadSuccess, setGhUploadSuccess] = useState('')
+
   const fileInputRef = useRef(null)
   const containerRef = useRef(null)
   const pageCanvasesRef = useRef({})
 
-  // Xác định thông tin tệp trên kho lưu trữ GitHub (ceohomes/CV-TQT/cvs)
+  // Xác định CHÍNH XÁC tệp đã thực sự được lưu trên kho GitHub (ceohomes/CV-TQT/cvs) hay chưa
+  // Tránh giả định mọi file .pdf đều là file đã có trên GitHub, dẫn tới sinh link 404
   const isGitHubBacked = Boolean(
-    candidate.githubUrl || 
-    candidate.fileUrl || 
-    (candidate.fileName && (candidate.fileName.startsWith('17') || candidate.fileName.includes('_') || candidate.fileName.endsWith('.pdf')))
+    (candidate?.githubUrl && String(candidate.githubUrl).trim().length > 0) ||
+    (candidate?.fileUrl && (String(candidate.fileUrl).includes('github') || String(candidate.fileUrl).includes('raw.githubusercontent.com'))) ||
+    (candidate?.fileName && /^\d{13}_/.test(candidate.fileName))
   )
 
-  const ghProxyUrl = candidate.fileName
+  const ghProxyUrl = (isGitHubBacked && candidate?.fileName)
     ? apiUrl(`/api/github-cv-file?file=${encodeURIComponent(candidate.fileName)}`)
-    : (candidate.fileUrl ? apiUrl(`/api/github-cv-file?url=${encodeURIComponent(candidate.fileUrl)}`) : '')
+    : ((isGitHubBacked && candidate?.fileUrl) ? apiUrl(`/api/github-cv-file?url=${encodeURIComponent(candidate.fileUrl)}`) : '')
 
-  const ghRawUrl = candidate.fileUrl || (candidate.fileName ? `https://raw.githubusercontent.com/ceohomes/CV-TQT/main/cvs/${candidate.fileName}` : '')
-  const ghWebUrl = candidate.githubUrl || (candidate.fileName ? `https://github.com/ceohomes/CV-TQT/blob/main/cvs/${candidate.fileName}` : 'https://github.com/ceohomes/CV-TQT/tree/main/cvs')
+  const ghRawUrl = (candidate?.fileUrl && candidate.fileUrl.includes('github'))
+    ? candidate.fileUrl
+    : (isGitHubBacked && candidate?.fileName ? `https://raw.githubusercontent.com/ceohomes/CV-TQT/main/cvs/${candidate.fileName}` : '')
+
+  // Chỉ tạo link Web tới file trên GitHub khi file thực sự đã được commit lên GitHub
+  const ghWebUrl = (candidate?.githubUrl && candidate.githubUrl.trim().length > 0)
+    ? candidate.githubUrl
+    : (isGitHubBacked && candidate?.fileName ? `https://github.com/ceohomes/CV-TQT/blob/main/cvs/${candidate.fileName}` : '')
+
+  // Hàm thủ công hoặc tự động đẩy CV lên GitHub repo
+  const handleUploadToGitHub = async () => {
+    if (uploadingToGh) return
+    setUploadingToGh(true)
+    setGhUploadError('')
+    setGhUploadSuccess('')
+
+    try {
+      let base64 = candidate?.fileDataUrl || ''
+      if (!base64 && pdfBlob) {
+        base64 = await blobToBase64(pdfBlob)
+      }
+      if (!base64 && candidate?.id) {
+        base64 = (await getCandidatePdf(candidate.id)) || ''
+      }
+
+      if (!base64) {
+        throw new Error('Không tìm thấy dữ liệu tệp PDF để đẩy lên GitHub. Vui lòng bấm "Chọn tệp" để tải tệp PDF.')
+      }
+
+      const res = await fetch(apiUrl('/api/upload-cv-github'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: candidate.fileName || 'CV_UngVien.pdf',
+          base64Data: base64,
+          candidateName: candidate.hoTen
+        })
+      })
+
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        if (data.needsToken) {
+          throw new Error('Chưa cấu hình GitHub Token! Vui lòng vào "Cài đặt Hệ thống & API" ở góc trên màn hình, mở tab "Kho GitHub" và nhập Personal Access Token có chọn quyền "repo".')
+        }
+        if (res.status === 401 || (data.details && data.details.includes('Bad credentials')) || (data.error && data.error.includes('401'))) {
+          throw new Error('Token GitHub bị từ chối (401 Bad credentials)! Token này đã bị GitHub tự động thu hồi (do lộ ra ngoài) hoặc hết hạn. Vui lòng tạo Token mới trên GitHub và lưu vào "Cài đặt Hệ thống & API".')
+        }
+        throw new Error(data.error || 'Lỗi khi tải tệp lên kho GitHub.')
+      }
+
+      // Cập nhật thông tin ứng viên
+      const updatedCandidate = {
+        ...candidate,
+        fileName: data.fileName,
+        fileUrl: data.downloadUrl,
+        githubUrl: data.htmlUrl,
+        fileDataUrl: base64
+      }
+
+      if (candidate.id) {
+        try {
+          await supabase
+            .from('sgc_ung_vien')
+            .update({
+              file_name: data.fileName,
+              file_url: data.downloadUrl,
+              github_url: data.htmlUrl,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', candidate.id)
+        } catch (dbErr) {
+          console.warn('Lỗi cập nhật Supabase sau khi upload GitHub:', dbErr)
+        }
+      }
+
+      if (onUpdateCandidate) {
+        onUpdateCandidate(updatedCandidate)
+      }
+
+      setGhUploadSuccess('Đã lưu CV lên kho GitHub thành công!')
+      setTimeout(() => setGhUploadSuccess(''), 5000)
+    } catch (err) {
+      console.error('Lỗi upload lên GitHub:', err)
+      setGhUploadError(err.message || 'Không thể tải CV lên GitHub')
+    } finally {
+      setUploadingToGh(false)
+    }
+  }
 
   // 1. Tải và phân giải tệp PDF gốc từ GitHub (hoặc pdfBlob)
   // Ưu tiên TUYỆT ĐỐI theo yêu cầu: View này LUÔN LUÔN là file lưu trên GitHub
@@ -425,40 +530,102 @@ export default function CandidatePdfViewer({
               }}>
                 <span>🐙 File lưu trên GitHub</span>
               </span>
-              <a
-                href={ghWebUrl}
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                  color: '#38bdf8', fontSize: 11,
-                  background: 'rgba(56, 189, 248, 0.12)',
-                  border: '1px solid rgba(56, 189, 248, 0.25)',
-                  padding: '2px 7px', borderRadius: 4,
-                  fontWeight: 600, textDecoration: 'none',
-                  whiteSpace: 'nowrap'
-                }}
-                title="Mở thư mục tệp CV trên kho GitHub (ceohomes/CV-TQT/cvs)"
-              >
-                <span>Kho GitHub</span>
-                <ExternalLink size={10} />
-              </a>
+              {ghWebUrl && (
+                <a
+                  href={ghWebUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    color: '#38bdf8', fontSize: 11,
+                    background: 'rgba(56, 189, 248, 0.12)',
+                    border: '1px solid rgba(56, 189, 248, 0.25)',
+                    padding: '2px 7px', borderRadius: 4,
+                    fontWeight: 600, textDecoration: 'none',
+                    whiteSpace: 'nowrap'
+                  }}
+                  title="Mở tệp CV trên kho GitHub (ceohomes/CV-TQT/cvs)"
+                >
+                  <span>Kho GitHub</span>
+                  <ExternalLink size={10} />
+                </a>
+              )}
             </div>
           ) : hasActualCv ? (
-            <span style={{ 
-              color: '#94a3b8', 
-              fontSize: 11, 
-              background: 'rgba(148, 163, 184, 0.12)', 
-              border: '1px solid rgba(148, 163, 184, 0.25)',
-              padding: '2px 8px', 
-              borderRadius: 4, 
-              fontWeight: 600,
-              whiteSpace: 'nowrap'
-            }}>
-              Tệp cục bộ
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ 
+                color: '#f59e0b', 
+                fontSize: 11, 
+                background: 'rgba(245, 158, 11, 0.15)', 
+                border: '1px solid rgba(245, 158, 11, 0.35)',
+                padding: '2px 8px', 
+                borderRadius: 4, 
+                fontWeight: 600,
+                whiteSpace: 'nowrap'
+              }}>
+                📁 Tệp cục bộ
+              </span>
+              <button
+                type="button"
+                onClick={handleUploadToGitHub}
+                disabled={uploadingToGh}
+                title="Tải tệp này lên kho GitHub ceohomes/CV-TQT để lưu trữ lâu dài"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  background: '#0284c7',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: uploadingToGh ? 'not-allowed' : 'pointer',
+                  whiteSpace: 'nowrap',
+                  opacity: uploadingToGh ? 0.7 : 1
+                }}
+              >
+                {uploadingToGh ? <RefreshCw size={11} className="animate-spin" /> : <CloudUpload size={11} />}
+                <span>{uploadingToGh ? 'Đang đẩy...' : 'Đẩy lên GitHub'}</span>
+              </button>
+            </div>
           ) : null}
         </div>
+
+        {/* Thông báo kết quả upload GitHub nếu có */}
+        {ghUploadSuccess && (
+          <div style={{
+            position: 'absolute', top: 52, left: 16, zIndex: 10,
+            background: '#10b981', color: '#ffffff', padding: '6px 12px',
+            borderRadius: 6, fontSize: 12, fontWeight: 700,
+            display: 'flex', alignItems: 'center', gap: 6,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+          }}>
+            <CheckCircle2 size={14} />
+            <span>{ghUploadSuccess}</span>
+          </div>
+        )}
+
+        {ghUploadError && (
+          <div style={{
+            position: 'absolute', top: 52, left: 16, zIndex: 10, maxWidth: 450,
+            background: '#ef4444', color: '#ffffff', padding: '6px 12px',
+            borderRadius: 6, fontSize: 12, fontWeight: 600,
+            display: 'flex', alignItems: 'center', gap: 6,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+          }}>
+            <AlertCircle size={14} style={{ flexShrink: 0 }} />
+            <span>{ghUploadError}</span>
+            <button
+              type="button"
+              onClick={() => setGhUploadError('')}
+              style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer', padding: 0, marginLeft: 6, fontWeight: 800 }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Center: View Mode Switcher + Zoom & Rotate Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>

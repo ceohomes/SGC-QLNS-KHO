@@ -5,12 +5,27 @@
 
 const MODELS_TO_TRY = ["gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-3.8-flash"];
 
-export async function callGeminiWithFallback(apiKey, parts, systemInstructionText, responseSchema = null) {
+// Cloudflare Pages Functions chạy trên các máy chủ biên (edge) rải khắp thế giới —
+// đôi khi request bị định tuyến qua một trung tâm dữ liệu ở khu vực mà Google chặn
+// gọi Gemini API trực tiếp (lỗi 400 "User location is not supported for the API use").
+// Nếu có cấu hình CF_ACCOUNT_ID + AI_GATEWAY_NAME (biến môi trường Cloudflare), sẽ gọi
+// Gemini thông qua Cloudflare AI Gateway (hạ tầng cố định của Cloudflare) thay vì gọi
+// thẳng generativelanguage.googleapis.com, giúp tránh bị chặn theo vị trí máy chủ biên.
+function buildGeminiUrl(model, apiKey, env) {
+  const accountId = env && (env.CF_ACCOUNT_ID || env.CLOUDFLARE_ACCOUNT_ID);
+  const gatewayName = env && (env.AI_GATEWAY_NAME || env.CF_AI_GATEWAY_NAME);
+  if (accountId && gatewayName) {
+    return `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayName}/google-ai-studio/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  }
+  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+}
+
+export async function callGeminiWithFallback(apiKey, parts, systemInstructionText, responseSchema = null, env = null) {
   let lastError = null;
 
   for (const model of MODELS_TO_TRY) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const url = buildGeminiUrl(model, apiKey, env);
       const body = {
         contents: [{ role: "user", parts }],
         systemInstruction: { parts: [{ text: systemInstructionText }] },

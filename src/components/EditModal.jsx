@@ -664,8 +664,8 @@ export default function EditModal({
       setFormData(prev => ({
         ...prev,
         fileName: ghResult?.fileName || file.name,
-        fileUrl: ghResult?.downloadUrl || prev.fileUrl || '',
-        githubUrl: ghResult?.htmlUrl || prev.githubUrl || '',
+        fileUrl: ghResult?.downloadUrl || '',
+        githubUrl: ghResult?.htmlUrl || '',
         fileDataUrl: dataUrl
       }))
     }
@@ -805,12 +805,14 @@ export default function EditModal({
   }
 
   const isGitHubBacked = Boolean(
-    formData.githubUrl || 
-    formData.fileUrl || 
-    (formData.fileName && (formData.fileName.startsWith('17') || formData.fileName.includes('_') || formData.fileName.endsWith('.pdf')))
+    (formData.githubUrl && String(formData.githubUrl).trim().length > 0) ||
+    (formData.fileUrl && (String(formData.fileUrl).includes('github') || String(formData.fileUrl).includes('raw.githubusercontent.com'))) ||
+    (formData.fileName && /^\d{13}_/.test(formData.fileName))
   )
 
-  const ghWebUrl = formData.githubUrl || (formData.fileName ? `https://github.com/ceohomes/CV-TQT/blob/main/cvs/${formData.fileName}` : 'https://github.com/ceohomes/CV-TQT/tree/main/cvs')
+  const ghWebUrl = (formData.githubUrl && String(formData.githubUrl).trim().length > 0)
+    ? formData.githubUrl
+    : (isGitHubBacked && formData.fileName ? `https://github.com/ceohomes/CV-TQT/blob/main/cvs/${formData.fileName}` : '')
 
   const inputStyle = {
     width: '100%',
@@ -970,7 +972,7 @@ export default function EditModal({
                   </span>
                 )}
 
-                {isGitHubBacked && formData.fileName && (currentPdfBlob || ghWebUrl) && (
+                {isGitHubBacked && ghWebUrl ? (
                   <a
                     href={ghWebUrl}
                     target="_blank"
@@ -996,7 +998,26 @@ export default function EditModal({
                     <span>🐙 GitHub cvs</span>
                     <ExternalLink size={11} />
                   </a>
-                )}
+                ) : (currentPdfBlob || formData.fileName) ? (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      background: 'rgba(255, 255, 255, 0.2)',
+                      color: '#ffffff',
+                      border: '1px solid rgba(255, 255, 255, 0.4)',
+                      borderRadius: 18,
+                      padding: '3px 10px',
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap'
+                    }}
+                    title="Tệp CV này đang lưu trên máy cục bộ, chưa đồng bộ lên GitHub"
+                  >
+                    📁 Tệp máy
+                  </span>
+                ) : null}
               </div>
 
               <div style={{ fontSize: 12.5, color: '#c7d2fe', marginTop: 2, display: 'flex', gap: 10, alignItems: 'center' }}>

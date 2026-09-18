@@ -107,29 +107,62 @@ app.get("/api/health", async (_req, res) => {
 app.get("/api/settings", async (_req, res) => {
   try {
     const geminiKey = await getSetting("GEMINI_API_KEY");
+    const githubToken = await getSetting("GITHUB_TOKEN");
+    const githubRepo = (await getSetting("GITHUB_REPO")) || process.env.GITHUB_REPO || "ceohomes/CV-TQT";
+    const githubBranch = (await getSetting("GITHUB_BRANCH")) || process.env.GITHUB_BRANCH || "main";
+    const githubFolder = (await getSetting("GITHUB_CV_FOLDER")) || process.env.GITHUB_CV_FOLDER || "cvs";
+
     res.json({
-      geminiApiKey: { configured: Boolean(geminiKey), masked: maskSecret(geminiKey) }
+      geminiApiKey: { configured: Boolean(geminiKey), masked: maskSecret(geminiKey) },
+      githubToken: { configured: Boolean(githubToken), masked: maskSecret(githubToken) },
+      githubRepo,
+      githubBranch,
+      githubFolder
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Không thể tải cấu hình" });
   }
 });
 
-// Lưu / cập nhật Gemini API Key vào Supabase.
+// Lưu / cập nhật Gemini API Key và GitHub Token vào Supabase.
 // Lưu ý: trên Cloudflare Pages route này không chạy — giao diện ghi thẳng vào Supabase.
 app.post("/api/settings", async (req, res) => {
   try {
-    const { geminiApiKey } = req.body || {};
+    const { geminiApiKey, githubToken, githubRepo, githubBranch, githubFolder } = req.body || {};
+    const updatedKeys: string[] = [];
 
-    if (typeof geminiApiKey !== "string" || !geminiApiKey.trim()) {
-      return res.status(400).json({ success: false, error: "Vui lòng nhập Gemini API Key." });
+    if (typeof geminiApiKey === "string" && geminiApiKey.trim()) {
+      await setSetting("GEMINI_API_KEY", geminiApiKey.trim());
+      updatedKeys.push("GEMINI_API_KEY");
     }
 
-    await setSetting("GEMINI_API_KEY", geminiApiKey.trim());
+    if (typeof githubToken === "string") {
+      await setSetting("GITHUB_TOKEN", githubToken.trim());
+      updatedKeys.push("GITHUB_TOKEN");
+    }
 
-    res.json({ success: true, updated: ["GEMINI_API_KEY"] });
+    if (typeof githubRepo === "string" && githubRepo.trim()) {
+      await setSetting("GITHUB_REPO", githubRepo.trim());
+      updatedKeys.push("GITHUB_REPO");
+    }
+
+    if (typeof githubBranch === "string" && githubBranch.trim()) {
+      await setSetting("GITHUB_BRANCH", githubBranch.trim());
+      updatedKeys.push("GITHUB_BRANCH");
+    }
+
+    if (typeof githubFolder === "string" && githubFolder.trim()) {
+      await setSetting("GITHUB_CV_FOLDER", githubFolder.trim());
+      updatedKeys.push("GITHUB_CV_FOLDER");
+    }
+
+    if (updatedKeys.length === 0) {
+      return res.status(400).json({ success: false, error: "Không có thông tin cấu hình nào để cập nhật." });
+    }
+
+    res.json({ success: true, updated: updatedKeys });
   } catch (err: any) {
-    console.error("Lỗi khi lưu Gemini API Key:", err.message);
+    console.error("Lỗi khi lưu cấu hình:", err.message);
     res.status(500).json({ success: false, error: err.message || "Không thể lưu cấu hình" });
   }
 });
@@ -621,18 +654,100 @@ function sanitizeFileNameForGitHub(originalName: string): string {
   return `${timestamp}_${cleanBase || "CV"}${ext}`;
 }
 
-// Check GitHub repo config status
+// Helper to get GitHub repository and token config
+async function getGitHubConfig() {
+  const token = (await getSetting("GITHUB_TOKEN")) || process.env.GITHUB_TOKEN || "";
+  const repo = (await getSetting("GITHUB_REPO")) || process.env.GITHUB_REPO || "ceohomes/CV-TQT";
+  const branch = (await getSetting("GITHUB_BRANCH")) || process.env.GITHUB_BRANCH || "main";
+  const folder = (await getSetting("GITHUB_CV_FOLDER")) || process.env.GITHUB_CV_FOLDER || "cvs";
+  return { token, repo, branch, folder };
+}
+
+// Check GitHub repo config status and test credentials
 app.get("/api/github-status", async (_req, res) => {
-  const token = process.env.GITHUB_TOKEN || "";
-  const repo = process.env.GITHUB_REPO || "ceohomes/CV-TQT";
-  const folder = process.env.GITHUB_CV_FOLDER || "cvs";
-  const branch = process.env.GITHUB_BRANCH || "main";
+  const { token, repo, branch, folder } = await getGitHubConfig();
+  let canPush = false;
+  let testError = "";
+  let repoDetails: any = null;
+
+  if (token) {
+    try {
+      const testRes = await fetch(`https://api.github.com/repos/${repo}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "User-Agent": "SGC-HR-Manager",
+          Accept: "application/vnd.github+json"
+        }
+      });
+      if (testRes.ok) {
+        repoDetails = await testRes.json();
+        const perms = repoDetails.permissions || {};
+        canPush = Boolean(perms.push || perms.admin);
+      } else {
+        testError = `Lỗi GitHub (${testRes.status}): ${testRes.statusText}`;
+      }
+    } catch (err: any) {
+      testError = err.message || "Không thể kết nối đến GitHub";
+    }
+  }
+
   res.json({
     configured: Boolean(token),
-    repo: repo,
-    folder: folder,
-    branch: branch
+    hasToken: Boolean(token),
+    maskedToken: token ? maskSecret(token) : "",
+    repo,
+    folder,
+    branch,
+    canPush,
+    testError,
+    repoName: repoDetails?.full_name || repo
   });
+});
+
+// Test a GitHub token directly from Settings modal
+app.post("/api/test-github-token", async (req, res) => {
+  try {
+    const { token, repo = "ceohomes/CV-TQT" } = req.body || {};
+    const config = await getGitHubConfig();
+    const activeToken = (token || "").trim() || config.token;
+    const targetRepo = (repo || "").trim() || config.repo;
+
+    if (!activeToken) {
+      return res.status(400).json({ success: false, error: "Vui lòng nhập GitHub Personal Access Token để kiểm tra." });
+    }
+
+    const testRes = await fetch(`https://api.github.com/repos/${targetRepo}`, {
+      headers: {
+        Authorization: `Bearer ${activeToken}`,
+        "User-Agent": "SGC-HR-Manager",
+        Accept: "application/vnd.github+json"
+      }
+    });
+
+    if (!testRes.ok) {
+      const errText = await testRes.text();
+      return res.status(testRes.status).json({
+        success: false,
+        error: `Không thể kết nối kho ${targetRepo}: Mã lỗi ${testRes.status} (${testRes.statusText}). Hãy kiểm tra lại mã Token hoặc quyền truy cập.`,
+        details: errText
+      });
+    }
+
+    const repoData: any = await testRes.json();
+    const perms = repoData.permissions || {};
+    const canPush = Boolean(perms.push || perms.admin);
+
+    return res.json({
+      success: true,
+      repo: repoData.full_name,
+      canPush,
+      message: canPush
+        ? `Kết nối thành công! Token có quyền ghi vào kho lưu trữ ${repoData.full_name}.`
+        : `Kết nối được kho ${repoData.full_name}, nhưng Token thiếu quyền ghi (push). Vui lòng tạo token mới có chọn quyền 'repo'.`
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "Lỗi kiểm tra GitHub Token" });
+  }
 });
 
 // Endpoint to stream/download CV from GitHub repo (ceohomes/CV-TQT/cvs) directly to browser
@@ -641,10 +756,7 @@ app.get("/api/github-cv-file", async (req, res) => {
     const fileParam = (req.query.file as string) || (req.query.fileName as string) || "";
     const urlParam = (req.query.url as string) || "";
 
-    const token = process.env.GITHUB_TOKEN || "";
-    const repo = process.env.GITHUB_REPO || "ceohomes/CV-TQT";
-    const branch = process.env.GITHUB_BRANCH || "main";
-    const folder = process.env.GITHUB_CV_FOLDER || "cvs";
+    const { token, repo, branch, folder } = await getGitHubConfig();
 
     let targetUrl = urlParam;
     let targetFileName = fileParam;
@@ -672,17 +784,36 @@ app.get("/api/github-cv-file", async (req, res) => {
     // Try fetching via direct raw URL first
     let response = await fetch(targetUrl, { headers: fetchHeaders });
 
+    // If failed (e.g. token expired, invalid or repo is public), retry without Authorization header
+    if (!response.ok && token) {
+      const publicHeaders: Record<string, string> = { "User-Agent": "SGC-HR-Manager" };
+      const publicRes = await fetch(targetUrl, { headers: publicHeaders });
+      if (publicRes.ok) {
+        response = publicRes;
+      }
+    }
+
     // If raw URL failed or returned 404, try GitHub API contents endpoint
     if (!response.ok && targetFileName) {
       const cleanName = path.basename(targetFileName);
       const apiContentUrl = `https://api.github.com/repos/${repo}/contents/${folder}/${cleanName}?ref=${branch}`;
-      const apiRes = await fetch(apiContentUrl, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "User-Agent": "SGC-HR-Manager",
-          "Accept": "application/vnd.github.raw+json"
+      const apiHeaders: Record<string, string> = {
+        "User-Agent": "SGC-HR-Manager",
+        "Accept": "application/vnd.github.raw+json"
+      };
+      if (token) {
+        apiHeaders["Authorization"] = `Bearer ${token}`;
+      }
+      let apiRes = await fetch(apiContentUrl, { headers: apiHeaders });
+      if (!apiRes.ok && token) {
+        // Retry without token
+        const publicApiRes = await fetch(apiContentUrl, {
+          headers: { "User-Agent": "SGC-HR-Manager", "Accept": "application/vnd.github.raw+json" }
+        });
+        if (publicApiRes.ok) {
+          apiRes = publicApiRes;
         }
-      });
+      }
       if (apiRes.ok) {
         response = apiRes;
       }
@@ -716,10 +847,15 @@ app.post("/api/upload-cv-github", async (req, res) => {
       return res.status(400).json({ success: false, error: "base64Data is required" });
     }
 
-    const token = process.env.GITHUB_TOKEN || "";
-    const repo = process.env.GITHUB_REPO || "ceohomes/CV-TQT";
-    const branch = process.env.GITHUB_BRANCH || "main";
-    const folder = process.env.GITHUB_CV_FOLDER || "cvs";
+    const { token, repo, branch, folder } = await getGitHubConfig();
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        needsToken: true,
+        error: "Chưa cấu hình GitHub Token (GITHUB_TOKEN). Vui lòng vào nút 'Cài đặt API' ở góc trên màn hình để nhập GitHub Personal Access Token (chọn quyền 'repo') giúp tự động lưu trữ CV lên kho GitHub."
+      });
+    }
 
     // Clean base64 string (strip data:application/...;base64, prefix)
     let rawBase64 = base64Data;
