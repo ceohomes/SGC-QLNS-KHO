@@ -637,7 +637,18 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
           const updatePayload = {}
 
           if (matchedOrig) {
-            const matchedNew = newProjectsList.find(n => n.id === matchedOrig.id)
+            let matchedNew = newProjectsList.find(n => n.id === matchedOrig.id)
+            // Phòng vệ: nếu không khớp được theo ID (ví dụ do thao tác kéo thả sắp xếp lại
+            // thứ tự khối/dự án làm lệch tham chiếu ID tạm thời), TRƯỚC KHI kết luận "dự án
+            // đã bị xóa" và gỡ toàn bộ thủ kho về chưa phân bổ, thử khớp lại theo TÊN dự án
+            // hiện có trong danh sách mới — chỉ khi không tìm thấy theo cả ID lẫn tên mới
+            // thực sự coi là dự án đã bị xóa. Tránh lỗi vô tình đưa hàng loạt thủ kho về
+            // "chưa phân bổ" chỉ vì thao tác kéo thả sắp xếp thứ tự, không xóa gì cả.
+            if (!matchedNew) {
+              matchedNew = newProjectsList.find(n =>
+                (n.name || '').trim().toLowerCase() === (matchedOrig.name || '').trim().toLowerCase()
+              )
+            }
             if (!matchedNew) {
               // Dự án bị xóa khỏi cấu hình -> Đưa thủ kho về trạng thái chưa phân bổ
               if ('khoi_thi_cong' in row) updatePayload.khoi_thi_cong = 'KHỐI THI CÔNG CHƯA PHÂN BỔ'
