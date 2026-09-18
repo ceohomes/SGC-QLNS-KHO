@@ -466,7 +466,41 @@ Các quy tắc:
 16. "chungChi": Chứng chỉ liên quan (ATLĐ, PCCC, kế toán...).
 17. "aiDanhGia": Nhận xét đánh giá chuyên môn khách quan của AI về thế mạnh, năng lực và mức độ phù hợp với vị trí quản lý kho vật tư tại SGC (2 câu).
 18. "diemPhuHop": Chấm điểm độ phù hợp từ 1.0 đến 10.0 (số thực, ví dụ: 9.0 hoặc 8.5).
+
+QUAN TRỌNG - CÁCH ĐỌC TÀI LIỆU: Nhiều CV hiện đại (mẫu Canva, mẫu có ảnh đại diện) trình bày thông tin liên hệ (số điện thoại, email, ngày sinh, CCCD, địa chỉ, quê quán) trong một KHUNG MÀU/SIDEBAR/CỘT RIÊNG nằm cạnh ảnh đại diện hoặc ở đầu trang, KHÔNG nằm trong đoạn văn bản chính, và thường không có nhãn chữ rõ ràng mà chỉ có icon đi kèm (icon điện thoại = số điện thoại, icon phong bì = email, icon ghim bản đồ/nhà = địa chỉ, icon lịch = ngày sinh...). Hãy đọc và quét TOÀN BỘ tài liệu bao gồm cả các khung/sidebar/vùng đồ họa này, không chỉ đoạn văn bản thân bài. Nhận diện các dòng thông tin đi kèm icon (dù không có nhãn chữ) là dữ liệu liên hệ hợp lệ. TUYỆT ĐỐI không được để trống các trường soDienThoai, email, ngaySinh, diaChi, cccd, queQuan nếu thông tin đó thực sự xuất hiện ở bất kỳ đâu trong tài liệu. Nếu sau khi đọc kỹ toàn bộ tài liệu (kể cả khung/sidebar) mà không tìm thấy, mới để chuỗi rỗng "" — không được bịa đặt thông tin không có trong tài liệu.
+
 Chỉ trả về JSON thuần túy, không kèm markdown \`\`\`json.`;
+
+// Ép Gemini luôn cố gắng trả về đủ 18 trường (không được lặng lẽ bỏ qua trường khó),
+// tăng khả năng nhận diện các trường liên hệ nằm trong khung/sidebar đồ họa.
+const CV_RESPONSE_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    hoTen: { type: "STRING" },
+    soDienThoai: { type: "STRING" },
+    email: { type: "STRING" },
+    ngaySinh: { type: "STRING" },
+    gioiTinh: { type: "STRING" },
+    cccd: { type: "STRING" },
+    queQuan: { type: "STRING" },
+    diaChi: { type: "STRING" },
+    chucVu: { type: "STRING" },
+    duAn: { type: "STRING" },
+    trinhDo: { type: "STRING" },
+    chuyenNganh: { type: "STRING" },
+    soNamKinhNghiem: { type: "NUMBER" },
+    kinhNghiem: { type: "STRING" },
+    kyNang: { type: "STRING" },
+    chungChi: { type: "STRING" },
+    aiDanhGia: { type: "STRING" },
+    diemPhuHop: { type: "NUMBER" }
+  },
+  required: [
+    "hoTen", "soDienThoai", "email", "ngaySinh", "gioiTinh", "cccd",
+    "queQuan", "diaChi", "chucVu", "duAn", "trinhDo", "chuyenNganh",
+    "soNamKinhNghiem", "kinhNghiem", "kyNang", "chungChi", "aiDanhGia", "diemPhuHop"
+  ]
+};
 
     let parts: any[] = [];
 
@@ -503,7 +537,8 @@ Chỉ trả về JSON thuần túy, không kèm markdown \`\`\`json.`;
       { parts },
       {
         systemInstruction,
-        responseMimeType: "application/json"
+        responseMimeType: "application/json",
+        responseSchema: CV_RESPONSE_SCHEMA
       }
     );
 

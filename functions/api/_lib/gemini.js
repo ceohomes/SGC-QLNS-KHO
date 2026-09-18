@@ -5,7 +5,7 @@
 
 const MODELS_TO_TRY = ["gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-3.8-flash"];
 
-export async function callGeminiWithFallback(apiKey, parts, systemInstructionText) {
+export async function callGeminiWithFallback(apiKey, parts, systemInstructionText, responseSchema = null) {
   let lastError = null;
 
   for (const model of MODELS_TO_TRY) {
@@ -14,7 +14,13 @@ export async function callGeminiWithFallback(apiKey, parts, systemInstructionTex
       const body = {
         contents: [{ role: "user", parts }],
         systemInstruction: { parts: [{ text: systemInstructionText }] },
-        generationConfig: { responseMimeType: "application/json" }
+        generationConfig: {
+          responseMimeType: "application/json",
+          // Khi có responseSchema: buộc Gemini phải trả về đủ mọi trường (kể cả
+          // chuỗi rỗng nếu không tìm thấy) thay vì lặng lẽ bỏ qua trường khó,
+          // giúp tăng khả năng trích xuất các trường liên hệ nằm trong khung/sidebar.
+          ...(responseSchema ? { responseSchema } : {})
+        }
       };
 
       const res = await fetch(url, {

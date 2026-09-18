@@ -464,52 +464,6 @@ export default function CandidatePdfViewer({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           {hasActualCv && (
             <>
-              {/* Mode Switcher */}
-              <div style={{
-                display: 'flex', alignItems: 'center',
-                background: '#1e293b', borderRadius: 6, border: '1px solid #334155', padding: 2
-              }}>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('canvas')}
-                  title="Chế độ hiển thị PDF.js nét cao từng trang"
-                  style={{
-                    background: viewMode === 'canvas' ? '#2563eb' : 'transparent',
-                    color: viewMode === 'canvas' ? '#ffffff' : '#94a3b8',
-                    border: 'none', padding: '3px 8px', borderRadius: 4,
-                    fontSize: 11, fontWeight: 700, cursor: 'pointer'
-                  }}
-                >
-                  Trang PDF gốc
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('embed')}
-                  title="Chế độ nhúng trực tiếp tệp PDF từ GitHub"
-                  style={{
-                    background: viewMode === 'embed' ? '#2563eb' : 'transparent',
-                    color: viewMode === 'embed' ? '#ffffff' : '#94a3b8',
-                    border: 'none', padding: '3px 8px', borderRadius: 4,
-                    fontSize: 11, fontWeight: 700, cursor: 'pointer'
-                  }}
-                >
-                  Khung nhúng PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('digital')}
-                  title="Xem bản tóm tắt số hóa hồ sơ SGC"
-                  style={{
-                    background: viewMode === 'digital' ? '#2563eb' : 'transparent',
-                    color: viewMode === 'digital' ? '#ffffff' : '#94a3b8',
-                    border: 'none', padding: '3px 8px', borderRadius: 4,
-                    fontSize: 11, fontWeight: 700, cursor: 'pointer'
-                  }}
-                >
-                  Hồ sơ số hóa
-                </button>
-              </div>
-
               {/* Zoom Buttons (only for canvas or digital mode) */}
               {viewMode !== 'embed' && (
                 <div style={{ display: 'flex', alignItems: 'center', background: '#1e293b', borderRadius: 6, border: '1px solid #334155' }}>
