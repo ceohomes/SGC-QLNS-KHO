@@ -6,10 +6,22 @@ import ExcelJS from 'exceljs'
 
 // Bảng màu để gán màu riêng cho từng Chuyên viên hậu kiểm (CV hậu kiểm) — tự động
 // chọn màu dựa theo họ tên (hash), giúp phân biệt trực quan mà không cần lưu thêm cột màu.
+// Các màu được chọn lệch nhau cả về sắc (hue) lẫn độ đậm/nhạt để tránh nhìn na ná nhau.
 const CB_HAU_KIEM_COLORS = [
-  '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#10b981',
-  '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6',
-  '#a855f7', '#d946ef', '#ec4899', '#f43f5e'
+  '#dc2626', // đỏ
+  '#ea580c', // cam
+  '#65a30d', // xanh ô liu
+  '#16a34a', // xanh lá
+  '#0d9488', // xanh ngọc (teal)
+  '#0891b2', // xanh cyan
+  '#2563eb', // xanh dương
+  '#4338ca', // chàm (indigo)
+  '#7c3aed', // tím violet
+  '#a21caf', // tím magenta
+  '#db2777', // hồng đậm
+  '#9f1239', // đỏ mận (rose)
+  '#78350f', // nâu
+  '#334155'  // xám than
 ]
 
 const getCbHauKiemColor = (hoTen) => {
@@ -1476,7 +1488,9 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
       {/* Chế độ 2 cột: panel trái là danh sách khối, panel phải là dự án của khối đang chọn (giống sheet Danh sách theo dự án) */}
       {(() => {
         const effectiveSelectedBlock = blocks.find(b => b.id === selectedBlockId) || blocks[0] || null
-        const selColors = effectiveSelectedBlock ? getModernColors(effectiveSelectedBlock.color) : null
+        const selColors = effectiveSelectedBlock
+          ? getModernColors(effectiveSelectedBlock.canBoHauKiem ? resolveCbColor(effectiveSelectedBlock.canBoHauKiem) : effectiveSelectedBlock.color)
+          : null
         const filteredProjects = effectiveSelectedBlock
           ? (effectiveSelectedBlock.projects || []).filter(p =>
               !searchQuery || (p.name && p.name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
@@ -1497,7 +1511,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
               <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4 }}>
                 {blocks.map((block, idx) => {
                   const isOver = dropOverBlockId === block.id
-                  const colors = getModernColors(block.color)
+                  const colors = getModernColors(block.canBoHauKiem ? resolveCbColor(block.canBoHauKiem) : block.color)
                   const isSelected = effectiveSelectedBlock?.id === block.id
                   return (
                     <div
