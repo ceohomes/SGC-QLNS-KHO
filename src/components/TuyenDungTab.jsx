@@ -816,9 +816,9 @@ export default function TuyenDungTab({
   // Open recruitment modal
   const handleOpenRecruitModal = (candidate) => {
     setRecruitingCandidate(candidate)
-    setCustomMaNVInput(inlineMaNVInputs[candidate.id] || suggestedNextMaNV)
+    setCustomMaNVInput(inlineMaNVInputs[candidate.id] || '')
     setSelectedOfficialKhoi(candidate.banChuoiKhoi || candidate.khoiThiCong || 'Khối Thi công')
-    setSelectedOfficialDuAn(candidate.duAn || (availableProjects[0] || 'Chưa phân bổ'))
+    setSelectedOfficialDuAn(candidate.duAn || 'Chưa phân bổ')
     const validChucVu = uniquePositions.includes(candidate.chucVu) ? candidate.chucVu : (uniquePositions[0] || 'Thủ kho')
     setSelectedOfficialChucVu(validChucVu)
   }
@@ -1777,16 +1777,9 @@ export default function TuyenDungTab({
       {recruitingCandidate && (
         <RecruitConfirmModal
           candidate={recruitingCandidate}
-          suggestedMaNV={customMaNVInput || suggestedNextMaNV}
-          selectedKhoi={selectedOfficialKhoi}
-          onChangeKhoi={setSelectedOfficialKhoi}
-          blocksList={BAN_CHUOI_KHOI_LIST}
-          selectedDuAn={selectedOfficialDuAn}
-          onChangeDuAn={setSelectedOfficialDuAn}
           selectedChucVu={selectedOfficialChucVu}
           onChangeChucVu={setSelectedOfficialChucVu}
           positionsList={uniquePositions}
-          projectsList={availableProjects}
           maNV={customMaNVInput}
           onChangeMaNV={setCustomMaNVInput}
           onConfirm={handleConfirmRecruitment}
@@ -2594,18 +2587,11 @@ function AICVUploadModal({ onClose, onAddCandidates, positionsList = [], project
 // -------------------------------------------------------------
 function RecruitConfirmModal({ 
   candidate, 
-  suggestedMaNV, 
   maNV, 
   onChangeMaNV, 
-  selectedKhoi,
-  onChangeKhoi,
-  blocksList = BAN_CHUOI_KHOI_LIST,
-  selectedDuAn, 
-  onChangeDuAn,
   selectedChucVu,
   onChangeChucVu,
   positionsList = [],
-  projectsList = [],
   onConfirm,
   onCancel
 }) {
@@ -2662,81 +2648,27 @@ function RecruitConfirmModal({
             <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>
               MÃ NHÂN VIÊN CHÍNH THỨC <span style={{ color: '#ef4444' }}>*</span>
             </label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                type="text"
-                className="input"
-                style={{
-                  flex: 1,
-                  height: 44,
-                  fontSize: 15,
-                  fontWeight: 800,
-                  color: '#0f58a7',
-                  borderRadius: 10,
-                  border: '2px solid #3b82f6',
-                  padding: '0 14px'
-                }}
-                placeholder="VD: 3752888"
-                value={maNV}
-                onChange={e => onChangeMaNV(e.target.value)}
-                autoFocus
-              />
-              <button
-                type="button"
-                onClick={() => onChangeMaNV(suggestedMaNV)}
-                style={{
-                  padding: '0 12px',
-                  borderRadius: 10,
-                  border: '1px solid #cbd5e1',
-                  background: '#f1f5f9',
-                  color: '#475569',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                Gợi ý: {suggestedMaNV}
-              </button>
-            </div>
+            <input
+              type="text"
+              className="input"
+              style={{
+                width: '100%',
+                height: 44,
+                fontSize: 15,
+                fontWeight: 800,
+                color: '#0f58a7',
+                borderRadius: 10,
+                border: '2px solid #3b82f6',
+                padding: '0 14px'
+              }}
+              placeholder="VD: 3752888"
+              value={maNV}
+              onChange={e => onChangeMaNV(e.target.value)}
+              autoFocus
+            />
             <span style={{ fontSize: 11.5, color: '#64748b', marginTop: 4, display: 'block' }}>
               Mã nhân viên sẽ được dùng để quản lý thủ kho này xuyên suốt hệ thống.
             </span>
-          </div>
-
-          {/* Select Official Block / Khối thi công */}
-          <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>
-              KHỐI THI CÔNG / BAN CHUỖI KHỐI <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <select
-              className="input"
-              style={{ width: '100%', height: 42, borderRadius: 10, fontWeight: 600, color: '#0f58a7' }}
-              value={selectedKhoi || 'Khối Thi công'}
-              onChange={e => onChangeKhoi(e.target.value)}
-            >
-              {blocksList.map(block => (
-                <option key={block} value={block}>{block}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Select Official Project */}
-          <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>
-              DỰ ÁN / CÔNG TRÌNH PHÂN BỔ
-            </label>
-            <select
-              className="input"
-              style={{ width: '100%', height: 42, borderRadius: 10 }}
-              value={selectedDuAn}
-              onChange={e => onChangeDuAn(e.target.value)}
-            >
-              <option value="Chưa phân bổ">Chưa phân bổ</option>
-              {projectsList.map(proj => (
-                <option key={proj} value={proj}>{proj}</option>
-              ))}
-            </select>
           </div>
 
           {/* Select Official Job Title */}
