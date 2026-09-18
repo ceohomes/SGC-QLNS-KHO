@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Trash2, Pencil, Check, X, GripVertical, Building, FolderPlus, Database, Copy, RefreshCw, ChevronDown, ChevronUp, AlertCircle, Terminal, Search, Upload, AlertTriangle } from 'lucide-react'
+import { Plus, Trash2, Pencil, Check, X, GripVertical, Building, FolderPlus, Database, Copy, RefreshCw, ChevronDown, ChevronUp, AlertCircle, Terminal, Search, Upload, AlertTriangle, UserCheck } from 'lucide-react'
 import CustomAlert from './CustomAlert'
 import { supabase } from '../supabaseClient'
 
@@ -247,6 +247,13 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
   const [showSqlConfig, setShowSqlConfig] = useState(false)
   const [copiedSql, setCopiedSql] = useState(false)
 
+  // Danh sách Chuyên viên hậu kiểm (CB hậu kiểm) states
+  const [canBoHauKiemList, setCanBoHauKiemList] = useState([])
+  const [cbHauKiemLoading, setCbHauKiemLoading] = useState(false)
+  const [isCbHauKiemListModalOpen, setIsCbHauKiemListModalOpen] = useState(false)
+  const [editingCbHauKiem, setEditingCbHauKiem] = useState(null) // record đang sửa hoặc null nếu đang thêm mới
+  const [cbHauKiemHoTen, setCbHauKiemHoTen] = useState('')
+
   const showAlert = (message, severity = 'info', title = 'Thông báo') => {
     setAlertConfig({ type: 'alert', message, severity, title })
   }
@@ -315,6 +322,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
             bgColor: b.bg_color,
             borderColor: b.border_color,
             badgeBg: b.badge_bg,
+            canBoHauKiem: b.can_bo_hau_kiem || '',
             projects: blockProjs
           }
         })
@@ -349,7 +357,100 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
 
   useEffect(() => {
     loadFromSupabase()
+    loadCanBoHauKiem()
   }, [])
+
+  // Tải danh sách Chuyên viên hậu kiểm (CB hậu kiểm) từ Supabase
+  const loadCanBoHauKiem = async () => {
+    try {
+      setCbHauKiemLoading(true)
+      const { data: rows, error } = await supabase
+        .from('sgc_can_bo_hau_kiem')
+        .select('*')
+        .order('sort_order', { ascending: true })
+      if (error) throw error
+      setCanBoHauKiemList(rows || [])
+    } catch (err) {
+      console.warn('Chưa thể tải danh sách CB hậu kiểm (có thể bảng sgc_can_bo_hau_kiem chưa được tạo trên Supabase):', err.message)
+      setCanBoHauKiemList([])
+    } finally {
+      setCbHauKiemLoading(false)
+    }
+  }
+
+  const openAddCbHauKiem = () => {
+    setEditingCbHauKiem(null)
+    setCbHauKiemHoTen('')
+  }
+
+  const openEditCbHauKiem = (rec) => {
+    setEditingCbHauKiem(rec)
+    setCbHauKiemHoTen(rec.ho_ten || '')
+  }
+
+  const handleCbHauKiemSubmit = async (e) => {
+    e.preventDefault()
+    const hoTen = cbHauKiemHoTen.trim()
+    if (!hoTen) return
+    try {
+      setCbHauKiemLoading(true)
+      const oldHoTen = editingCbHauKiem ? editingCbHauKiem.ho_ten : null
+      if (editingCbHauKiem) {
+        const { error } = await supabase
+          .from('sgc_can_bo_hau_kiem')
+          .update({ ho_ten: hoTen })
+          .eq('id', editingCbHauKiem.id)
+        if (error) throw error
+
+        // Nếu đổi tên, cập nhật lại các khối đang gán CB hậu kiểm này (đang lưu theo tên)
+        if (oldHoTen && oldHoTen !== hoTen) {
+          setBlocks(prev => prev.map(b => b.canBoHauKiem === oldHoTen ? { ...b, canBoHauKiem: hoTen } : b))
+          setOriginalBlocks(prev => prev.map(b => b.canBoHauKiem === oldHoTen ? { ...b, canBoHauKiem: hoTen } : b))
+        }
+      } else {
+        const newId = `cbhk_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`
+        const { error } = await supabase
+          .from('sgc_can_bo_hau_kiem')
+          .insert([{ id: newId, ho_ten: hoTen, sort_order: canBoHauKiemList.length }])
+        if (error) throw error
+      }
+      await loadCanBoHauKiem()
+      openAddCbHauKiem()
+    } catch (err) {
+      showAlert(`Không thể lưu Chuyên viên hậu kiểm: ${err.message}. Vui lòng đảm bảo bảng "sgc_can_bo_hau_kiem" đã được tạo trên Supabase (xem câu lệnh SQL bên dưới).`, 'error', 'Lỗi')
+    } finally {
+      setCbHauKiemLoading(false)
+    }
+  }
+
+  const handleDeleteCbHauKiem = (rec) => {
+    showConfirm(
+      `Xóa Chuyên viên hậu kiểm "${rec.ho_ten}" khỏi danh sách? Các khối đang gán CB này sẽ được để trống, cần gán lại.`,
+      async () => {
+        try {
+          setCbHauKiemLoading(true)
+          const { error } = await supabase.from('sgc_can_bo_hau_kiem').delete().eq('id', rec.id)
+          if (error) throw error
+          setBlocks(prev => prev.map(b => b.canBoHauKiem === rec.ho_ten ? { ...b, canBoHauKiem: '' } : b))
+          setOriginalBlocks(prev => prev.map(b => b.canBoHauKiem === rec.ho_ten ? { ...b, canBoHauKiem: '' } : b))
+          await loadCanBoHauKiem()
+          setAlertConfig(null)
+        } catch (err) {
+          showAlert(`Không thể xóa: ${err.message}`, 'error', 'Lỗi')
+        } finally {
+          setCbHauKiemLoading(false)
+        }
+      },
+      () => setAlertConfig(null),
+      'Xác nhận xóa',
+      'warning'
+    )
+  }
+
+  // Gán CB hậu kiểm phụ trách cho 1 khối — cập nhật state cục bộ, cần bấm "Lưu cấu hình" để đồng bộ Supabase
+  const handleAssignCbHauKiem = (blockId, value) => {
+    setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, canBoHauKiem: value } : b))
+  }
 
   // Auto-hide toast after 3s
   useEffect(() => {
@@ -487,6 +588,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
         bg_color: b.bgColor,
         border_color: b.borderColor,
         badge_bg: b.badgeBg,
+        can_bo_hau_kiem: b.canBoHauKiem || null,
         sort_order: idx
       }))
 
@@ -1355,6 +1457,38 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                         {searchQuery ? `${filteredProjects.length}/${effectiveSelectedBlock.projects.length}` : effectiveSelectedBlock.projects.length} NGĂN KHO
                       </span>
                     </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <select
+                        value={effectiveSelectedBlock.canBoHauKiem || ''}
+                        onChange={(e) => handleAssignCbHauKiem(effectiveSelectedBlock.id, e.target.value)}
+                        title="Chọn Chuyên viên hậu kiểm phụ trách khối này"
+                        style={{
+                          padding: '7px 10px', borderRadius: 10, fontSize: 12.5, fontWeight: 600,
+                          background: '#ffffff', color: '#334155', border: `1.5px solid ${selColors.borderColor}`,
+                          cursor: 'pointer', maxWidth: 200
+                        }}
+                      >
+                        <option value="">— Chưa gán CB hậu kiểm —</option>
+                        {canBoHauKiemList.map(cb => (
+                          <option key={cb.id} value={cb.ho_ten}>{cb.ho_ten}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => { openAddCbHauKiem(); setIsCbHauKiemListModalOpen(true) }}
+                        title="Xem / quản lý danh sách Chuyên viên hậu kiểm"
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          padding: '8px 14px', borderRadius: 10, fontSize: 12.5, fontWeight: 700,
+                          background: '#ffffff', color: '#475569', border: '1.5px solid #cbd5e1',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <UserCheck size={14} />
+                        <span>CB hậu kiểm</span>
+                      </button>
+                    </div>
+
                     <button
                       onClick={() => openAddProject(effectiveSelectedBlock.id)}
                       style={{
@@ -1881,6 +2015,144 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
           </div>
         )
       })()}
+
+      {/* --- MODAL 4: DANH SÁCH CHUYÊN VIÊN HẬU KIỂM (CB hậu kiểm) --- */}
+      {isCbHauKiemListModalOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', zIndex: 1000,
+          backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 16
+        }}>
+          <div style={{
+            background: '#ffffff', borderRadius: 12, width: '100%', maxWidth: 560,
+            maxHeight: '88vh', display: 'flex', flexDirection: 'column',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+            overflow: 'hidden', textAlign: 'left'
+          }}>
+            <div style={{
+              background: '#0f58a7', padding: '16px 20px', color: '#ffffff',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0
+            }}>
+              <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>
+                DANH SÁCH CHUYÊN VIÊN HẬU KIỂM
+              </h4>
+              <button
+                onClick={() => setIsCbHauKiemListModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}>
+              <form onSubmit={handleCbHauKiemSubmit} style={{
+                display: 'flex', flexDirection: 'column', gap: 10, padding: 14,
+                background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: 10
+              }}>
+                <span style={{ fontSize: 12, fontWeight: 800, color: '#475569' }}>
+                  {editingCbHauKiem ? 'SỬA THÔNG TIN CB HẬU KIỂM' : 'THÊM CB HẬU KIỂM MỚI'}
+                </span>
+                <input
+                  type="text"
+                  required
+                  placeholder="Họ tên *"
+                  value={cbHauKiemHoTen}
+                  onChange={(e) => setCbHauKiemHoTen(e.target.value)}
+                  style={{
+                    width: '100%', padding: '8px 12px', fontSize: 13, borderRadius: 6,
+                    border: '1px solid #cbd5e1', outline: 'none', boxSizing: 'border-box'
+                  }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  {editingCbHauKiem && (
+                    <button
+                      type="button"
+                      onClick={openAddCbHauKiem}
+                      style={{
+                        background: 'none', border: '1px solid #cbd5e1', color: '#475569',
+                        padding: '7px 14px', borderRadius: 6, fontSize: 12.5, fontWeight: 600, cursor: 'pointer'
+                      }}
+                    >
+                      Hủy sửa
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={cbHauKiemLoading}
+                    style={{
+                      background: '#0f58a7', color: '#ffffff', border: 'none',
+                      padding: '7px 14px', borderRadius: 6, fontSize: 12.5, fontWeight: 700,
+                      cursor: cbHauKiemLoading ? 'not-allowed' : 'pointer', opacity: cbHauKiemLoading ? 0.7 : 1
+                    }}
+                  >
+                    {editingCbHauKiem ? 'Lưu thay đổi' : 'Thêm vào danh sách'}
+                  </button>
+                </div>
+              </form>
+
+              <div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 6 }}>
+                  Đang có {canBoHauKiemList.length} Chuyên viên hậu kiểm
+                </span>
+                <div style={{
+                  border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden'
+                }}>
+                  {canBoHauKiemList.length === 0 ? (
+                    <div style={{ padding: '20px 12px', textAlign: 'center', color: '#94a3b8', fontSize: 12.5 }}>
+                      {cbHauKiemLoading ? 'Đang tải...' : 'Chưa có Chuyên viên hậu kiểm nào. Thêm mới ở trên.'}
+                    </div>
+                  ) : (
+                    canBoHauKiemList.map((cb, idx) => (
+                      <div key={cb.id} style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                        padding: '9px 12px', fontSize: 12.5,
+                        borderBottom: idx < canBoHauKiemList.length - 1 ? '1px solid #f1f5f9' : 'none'
+                      }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, color: '#0f172a' }}>{cb.ho_ten}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                          <button
+                            onClick={() => openEditCbHauKiem(cb)}
+                            title="Sửa"
+                            style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: '#94a3b8' }}
+                            onMouseOver={(e) => e.currentTarget.style.color = '#0f58a7'}
+                            onMouseOut={(e) => e.currentTarget.style.color = '#94a3b8'}
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCbHauKiem(cb)}
+                            title="Xóa"
+                            style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: '#94a3b8' }}
+                            onMouseOver={(e) => e.currentTarget.style.color = '#ef4444'}
+                            onMouseOut={(e) => e.currentTarget.style.color = '#94a3b8'}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '16px 20px', borderTop: '1px solid #e2e8f0', flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={() => setIsCbHauKiemListModalOpen(false)}
+                style={{
+                  background: '#0f58a7', color: '#ffffff', border: 'none',
+                  padding: '8px 16px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer'
+                }}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {alertConfig && (
         <CustomAlert
