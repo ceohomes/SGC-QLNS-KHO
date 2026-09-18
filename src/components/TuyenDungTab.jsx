@@ -17,6 +17,7 @@ import useEscapeKey from '../hooks/useEscapeKey'
 import { BAN_CHUOI_KHOI_LIST } from '../mockData.js'
 import { supabase } from '../supabaseClient'
 import { apiUrl } from '../apiBase'
+import { uploadCvToGitHubUniversal, parseCvUniversal } from '../cloudFallbackService'
 import { tuyenDungBadgeClass, chucVuBadgeClass, avatarColor, initials, formatDate } from '../constants.js'
 import { 
   saveCandidatePdf, 
@@ -157,7 +158,9 @@ export function mapCandidateToDb(c) {
     // thức, nên trạng thái mặc định của ứng viên mới vẫn là 'Tiếp nhận CV' (không phải
     // 'Đang làm việc') để không bị các sheet Định biên/Phân bổ dự án hiểu nhầm là đã tuyển.
     trang_thai: c.trangThai || 'Tiếp nhận CV',
-    ma_nv: c.maNV || '',
+    // Nếu ứng viên chưa có mã NV, bắt buộc gửi null (không gửi chuỗi rỗng '')
+    // để tránh vi phạm ràng buộc UNIQUE "danh_sach_thu_kho_ma_nv_key" trên Postgres.
+    ma_nv: (c.maNV && String(c.maNV).trim()) ? String(c.maNV).trim() : null,
     file_name: c.fileName || '',
     file_url: c.fileUrl || '',
     github_url: c.githubUrl || '',
@@ -2160,18 +2163,13 @@ function AICVUploadModal({ onClose, onAddCandidates, positionsList = [], project
           reader.readAsDataURL(item.file)
         })
 
-        // Call backend /api/parse-cv
-        const response = await fetch(apiUrl('/api/parse-cv'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fileName: item.name,
-            mimeType: item.file.type || 'application/pdf',
-            base64Data: base64Data
-          })
+        // Trích xuất thông tin CV (Hỗ trợ cả Backend và Cloudflare Pages)
+        const resJson = await parseCvUniversal({
+          fileName: item.name,
+          mimeType: item.file.type || 'application/pdf',
+          base64Data: base64Data
         })
 
-        const resJson = await response.json()
         if (resJson.success && resJson.data) {
           item.status = 'success'
           const data = resJson.data
@@ -2184,18 +2182,11 @@ function AICVUploadModal({ onClose, onAddCandidates, positionsList = [], project
           // 1. Tự động lưu tệp CV vào kho GitHub (ceohomes/CV-TQT / cvs) để tránh tăng dung lượng Supabase
           let ghUploadResult = null
           try {
-            const ghRes = await fetch(apiUrl('/api/upload-cv-github'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                fileName: item.name,
-                base64Data: base64Data,
-                candidateName: data.hoTen || item.name
-              })
+            ghUploadResult = await uploadCvToGitHubUniversal({
+              fileName: item.name,
+              base64Data: base64Data,
+              candidateName: data.hoTen || item.name
             })
-            if (ghRes.ok) {
-              ghUploadResult = await ghRes.json()
-            }
           } catch (ghErr) {
             console.warn('Lỗi tự động tải CV lên GitHub:', ghErr)
           }
@@ -2988,16 +2979,11 @@ function CandidateDetailModal({
         })
       }
 
-      const res = await fetch(apiUrl('/api/parse-cv'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName: candidate.fileName || `${candidate.hoTen || 'CV'}.pdf`,
-          mimeType: 'application/pdf',
-          base64Data: base64Data || ''
-        })
+      const resJson = await parseCvUniversal({
+        fileName: candidate.fileName || `${candidate.hoTen || 'CV'}.pdf`,
+        mimeType: 'application/pdf',
+        base64Data: base64Data || ''
       })
-      const resJson = await res.json()
       if (resJson.success && resJson.data) {
         const parsed = resJson.data
         const updated = {
@@ -3046,18 +3032,11 @@ function CandidateDetailModal({
       // Tự động tải tệp PDF mới lên kho GitHub (ceohomes/CV-TQT / cvs)
       let ghResult = null
       try {
-        const ghRes = await fetch(apiUrl('/api/upload-cv-github'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fileName: file.name,
-            base64Data: dataUrl,
-            candidateName: candidate.hoTen
-          })
+        ghResult = await uploadCvToGitHubUniversal({
+          fileName: file.name,
+          base64Data: dataUrl,
+          candidateName: candidate.hoTen
         })
-        if (ghRes.ok) {
-          ghResult = await ghRes.json()
-        }
       } catch (ghErr) {
         console.warn('Lỗi tải tệp lên GitHub:', ghErr)
       }

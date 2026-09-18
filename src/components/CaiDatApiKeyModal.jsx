@@ -71,16 +71,20 @@ export default function CaiDatApiKeyModal({ isOpen, onClose }) {
   const [saving, setSaving] = useState(false)
   const [testingGh, setTestingGh] = useState(false)
   const [ghTestResult, setGhTestResult] = useState(null)
+  const [testingGemini, setTestingGemini] = useState(false)
+  const [geminiTestResult, setGeminiTestResult] = useState(null)
 
   // Gemini state
   const [geminiConfigured, setGeminiConfigured] = useState(false)
   const [geminiMasked, setGeminiMasked] = useState('')
+  const [geminiRawVal, setGeminiRawVal] = useState('')
   const [geminiValue, setGeminiValue] = useState('')
   const [geminiRevealed, setGeminiRevealed] = useState(false)
 
   // GitHub state
   const [ghTokenConfigured, setGhTokenConfigured] = useState(false)
   const [ghTokenMasked, setGhTokenMasked] = useState('')
+  const [ghTokenRawVal, setGhTokenRawVal] = useState('')
   const [ghTokenValue, setGhTokenValue] = useState('')
   const [ghTokenRevealed, setGhTokenRevealed] = useState(false)
   const [ghRepo, setGhRepo] = useState('ceohomes/CV-TQT')
@@ -100,6 +104,7 @@ export default function CaiDatApiKeyModal({ isOpen, onClose }) {
       setError('')
       setSuccess('')
       setGhTestResult(null)
+      setGeminiTestResult(null)
     }
   }, [isOpen])
 
@@ -120,11 +125,13 @@ export default function CaiDatApiKeyModal({ isOpen, onClose }) {
 
       // Gemini
       const gemVal = map[GEMINI_KEY_ID] || ''
+      setGeminiRawVal(gemVal)
       setGeminiConfigured(Boolean(gemVal))
       setGeminiMasked(maskSecret(gemVal))
 
       // GitHub
       const ghVal = map[GITHUB_TOKEN_ID] || ''
+      setGhTokenRawVal(ghVal)
       setGhTokenConfigured(Boolean(ghVal))
       setGhTokenMasked(maskSecret(ghVal))
       if (map[GITHUB_REPO_ID]) setGhRepo(map[GITHUB_REPO_ID])
@@ -183,6 +190,60 @@ export default function CaiDatApiKeyModal({ isOpen, onClose }) {
     } finally {
       setSaving(false)
       setTimeout(() => setSuccess(''), 4000)
+    }
+  }
+
+  // Kiểm tra kết nối Gemini AI trực tiếp từ trình duyệt
+  const handleTestGemini = async () => {
+    setTestingGemini(true)
+    setGeminiTestResult(null)
+    setError('')
+
+    const keyToTest = geminiValue.trim() || geminiRawVal || ''
+    if (!keyToTest) {
+      setError('Vui lòng nhập Gemini API Key để kiểm tra.')
+      setTestingGemini(false)
+      return
+    }
+
+    if (!keyToTest.startsWith('AIzaSy')) {
+      setGeminiTestResult({
+        success: false,
+        message: `Khóa hiện tại không đúng định dạng! Khóa này bắt đầu bằng "${keyToTest.slice(0, 3)}...". Gemini API Key chuẩn từ Google AI Studio bắt buộc phải bắt đầu bằng "AIzaSy..." (39 ký tự). Chuỗi bắt đầu bằng "AQ." là token tài khoản tạm thời, Google sẽ báo lỗi 401 UNAUTHENTICATED.`
+      })
+      setTestingGemini(false)
+      return
+    }
+
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${keyToTest}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: 'ping' }] }]
+        })
+      })
+
+      if (res.ok) {
+        setGeminiTestResult({
+          success: true,
+          message: 'Kết nối Google Gemini AI (model gemini-3.6-flash) thành công! Khóa này hoàn toàn hợp lệ và hoạt động trên cả Cloudflare Pages.'
+        })
+      } else {
+        const errJson = await res.json().catch(() => ({}))
+        const msg = errJson.error?.message || `Mã lỗi HTTP ${res.status}`
+        setGeminiTestResult({
+          success: false,
+          message: `Google Gemini API từ chối: ${msg}. Vui lòng tạo key mới tại aistudio.google.com/app/apikey.`
+        })
+      }
+    } catch (err) {
+      setGeminiTestResult({
+        success: false,
+        message: 'Không thể kết nối đến máy chủ Google Gemini: ' + (err.message || 'Lỗi mạng')
+      })
+    } finally {
+      setTestingGemini(false)
     }
   }
 
@@ -521,9 +582,55 @@ export default function CaiDatApiKeyModal({ isOpen, onClose }) {
                   </button>
                 </div>
 
-                <p style={{ margin: '6px 0 0', fontSize: 11.5, color: '#64748b' }}>
-                  Dùng để AI tự động trích xuất Họ tên, SĐT, Vị trí, Điểm đánh giá khi tải CV lên.
-                </p>
+                {/* Cảnh báo định dạng nếu key bắt đầu bằng AQ */}
+                {geminiConfigured && geminiRawVal && !geminiRawVal.startsWith('AIzaSy') && (
+                  <div style={{
+                    marginTop: 10, padding: '8px 12px', background: '#fffbeb',
+                    border: '1px solid #fde68a', borderRadius: 8, fontSize: 12,
+                    color: '#92400e', lineHeight: 1.5
+                  }}>
+                    ⚠️ <b>Cảnh báo định dạng API Key:</b> Khóa hiện tại trên Supabase của bạn bắt đầu bằng <code>{geminiRawVal.slice(0, 3)}...</code>. Đây là mã token tài khoản tạm thời, không phải Gemini API Key. Khi gọi Google Gemini sẽ bị lỗi 401 UNAUTHENTICATED. Vui lòng lấy key chuẩn tại <b>aistudio.google.com/app/apikey</b> (bắt đầu bằng <code>AIzaSy...</code>, 39 ký tự) và dán vào đây để lưu lại.
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, flexWrap: 'wrap', gap: 8 }}>
+                  <p style={{ margin: 0, fontSize: 11.5, color: '#64748b' }}>
+                    Key chuẩn bắt đầu bằng <b>AIzaSy...</b>. Dùng để AI tự động trích xuất Họ tên, SĐT, Vị trí, Điểm đánh giá khi tải CV.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={handleTestGemini}
+                    disabled={testingGemini || (!geminiValue.trim() && !geminiConfigured)}
+                    style={{
+                      padding: '6px 12px', borderRadius: 6, border: '1px solid #0f58a7',
+                      background: '#eff6ff', color: '#0f58a7', fontSize: 12, fontWeight: 700,
+                      cursor: (testingGemini || (!geminiValue.trim() && !geminiConfigured)) ? 'not-allowed' : 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      opacity: (testingGemini || (!geminiValue.trim() && !geminiConfigured)) ? 0.6 : 1
+                    }}
+                  >
+                    {testingGemini ? <Loader2 size={13} className="spin-icon" /> : <Sparkles size={13} />}
+                    <span>{testingGemini ? 'Đang kiểm tra...' : 'Kiểm tra kết nối Gemini AI'}</span>
+                  </button>
+                </div>
+
+                {/* Kết quả kiểm tra Gemini */}
+                {geminiTestResult && (
+                  <div style={{
+                    marginTop: 10, padding: '10px 12px', borderRadius: 8, fontSize: 12.5,
+                    background: geminiTestResult.success ? '#ecfdf5' : '#fef2f2',
+                    border: `1px solid ${geminiTestResult.success ? '#10b981' : '#f87171'}`,
+                    color: geminiTestResult.success ? '#065f46' : '#991b1b',
+                    display: 'flex', alignItems: 'flex-start', gap: 8
+                  }}>
+                    {geminiTestResult.success ? <CheckCircle2 size={16} style={{ flexShrink: 0, marginTop: 2 }} /> : <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />}
+                    <div style={{ flex: 1, lineHeight: 1.5 }}>
+                      <b>{geminiTestResult.success ? 'KẾT NỐI GEMINI THÀNH CÔNG' : 'KẾT NỐI GEMINI THẤT BẠI'}</b>
+                      <div style={{ marginTop: 2 }}>{geminiTestResult.message}</div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <button

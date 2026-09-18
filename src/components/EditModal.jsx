@@ -28,6 +28,7 @@ import {
 } from '../pdfStorage.js'
 import { initials, formatDate, trangThaiBadgeClass, danhGiaBadgeClass } from '../constants.js'
 import { apiUrl } from '../apiBase'
+import { uploadCvToGitHubUniversal, parseCvUniversal } from '../cloudFallbackService'
 
 // Helper to normalize date string to dd/mm/yyyy
 function toDdMmYyyy(val) {
@@ -596,16 +597,11 @@ export default function EditModal({
         })
       }
 
-      const res = await fetch(apiUrl('/api/parse-cv'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName: formData.fileName || `${formData.hoTen || 'CV'}.pdf`,
-          mimeType: 'application/pdf',
-          base64Data: base64Data || ''
-        })
+      const resJson = await parseCvUniversal({
+        fileName: formData.fileName || `${formData.hoTen || 'CV'}.pdf`,
+        mimeType: 'application/pdf',
+        base64Data: base64Data || ''
       })
-      const resJson = await res.json()
       if (resJson.success && resJson.data) {
         const parsed = resJson.data
         setFormData(prev => ({
@@ -642,21 +638,14 @@ export default function EditModal({
       const blob = dataUrlToBlob(dataUrl) || file
       setCurrentPdfBlob(blob)
 
-      // Đẩy lên GitHub repository
+      // Đẩy lên GitHub repository (Hỗ trợ cả Backend và Cloudflare Pages)
       let ghResult = null
       try {
-        const ghRes = await fetch(apiUrl('/api/upload-cv-github'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fileName: file.name,
-            base64Data: dataUrl,
-            candidateName: formData.hoTen
-          })
+        ghResult = await uploadCvToGitHubUniversal({
+          fileName: file.name,
+          base64Data: dataUrl,
+          candidateName: formData.hoTen
         })
-        if (ghRes.ok) {
-          ghResult = await ghRes.json()
-        }
       } catch (ghErr) {
         console.warn('Lỗi tải tệp lên GitHub:', ghErr)
       }

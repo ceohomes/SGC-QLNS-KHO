@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import mammoth from "mammoth";
@@ -171,7 +172,14 @@ app.post("/api/settings", async (req, res) => {
 async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> {
   try {
     const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });
+    const fontPath = path.join(process.cwd(), "node_modules/pdfjs-dist/standard_fonts/");
+    const cMapPath = path.join(process.cwd(), "node_modules/pdfjs-dist/cmaps/");
+    const loadingTask = pdfjsLib.getDocument({
+      data: new Uint8Array(buffer),
+      standardFontDataUrl: fs.existsSync(fontPath) ? fontPath : "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/standard_fonts/",
+      cMapUrl: fs.existsSync(cMapPath) ? cMapPath : "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/cmaps/",
+      cMapPacked: true,
+    });
     const doc = await loadingTask.promise;
     let fullText = "";
     for (let i = 1; i <= doc.numPages; i++) {
@@ -385,8 +393,8 @@ function fallbackHeuristicExtract(text: string, fileName: string) {
 
 // Helper to call Gemini with automatic cascading fallback models to handle 503 spikes
 async function callGeminiWithFallback(ai: GoogleGenAI, contents: any, config: any) {
-  // Try lightweight fast models first to avoid 503 high demand spikes
-  const models = ["gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-3.8-flash"];
+  // Try fast robust models first
+  const models = ["gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
   let lastError: any = null;
 
   for (const model of models) {
@@ -455,7 +463,12 @@ app.post("/api/parse-cv", async (req, res) => {
     // Run baseline heuristic extract from extractedText
     const baselineFallback = fallbackHeuristicExtract(extractedText, fileName);
 
-    const apiKey = await getSetting("GEMINI_API_KEY");
+    const apiKeySetting = await getSetting("GEMINI_API_KEY");
+    // Kiểm tra định dạng: Gemini API Key hợp lệ luôn bắt đầu bằng AIzaSy...
+    // Nếu key trong database không đúng định dạng hoặc rỗng, ưu tiên fallback sang biến môi trường
+    let apiKey = (apiKeySetting && apiKeySetting.trim().startsWith("AIzaSy"))
+      ? apiKeySetting.trim()
+      : (process.env.GEMINI_API_KEY || apiKeySetting || "");
 
     // If no API key is set, return rich heuristic extraction
     if (!apiKey) {
@@ -626,7 +639,7 @@ const CV_RESPONSE_SCHEMA = {
   } catch (error: any) {
     console.error("Error in /api/parse-cv:", error);
     const { rawText = "", fileName = "CV.pdf" } = req.body || {};
-    const fallback = fallbackHeuristicExtract(rawText, fileName);
+    const fallback = fallbackHeuristicExtract(rawText || extractedText, fileName);
     return res.json({
       success: true,
       data: fallback,

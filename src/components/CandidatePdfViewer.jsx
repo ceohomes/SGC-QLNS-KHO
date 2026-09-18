@@ -10,6 +10,7 @@ import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import { blobToArrayBuffer, renderCandidateCvToCanvas, getCandidatePdf } from '../pdfStorage.js'
 import { apiUrl } from '../apiBase'
 import { supabase } from '../supabaseClient'
+import { uploadCvToGitHubUniversal } from '../cloudFallbackService'
 
 // Convert Blob / File to Base64
 function blobToBase64(blob) {
@@ -205,26 +206,12 @@ export default function CandidatePdfViewer({
         throw new Error('Không tìm thấy dữ liệu tệp PDF để đẩy lên GitHub. Vui lòng bấm "Chọn tệp" để tải tệp PDF.')
       }
 
-      const res = await fetch(apiUrl('/api/upload-cv-github'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName: candidate.fileName || 'CV_UngVien.pdf',
-          base64Data: base64,
-          candidateName: candidate.hoTen
-        })
+      // Đẩy lên GitHub (Tự động hỗ trợ cả môi trường có backend và Cloudflare Pages)
+      const data = await uploadCvToGitHubUniversal({
+        fileName: candidate.fileName || 'CV_UngVien.pdf',
+        base64Data: base64,
+        candidateName: candidate.hoTen
       })
-
-      const data = await res.json()
-      if (!res.ok || !data.success) {
-        if (data.needsToken) {
-          throw new Error('Chưa cấu hình GitHub Token! Vui lòng vào "Cài đặt Hệ thống & API" ở góc trên màn hình, mở tab "Kho GitHub" và nhập Personal Access Token có chọn quyền "repo".')
-        }
-        if (res.status === 401 || (data.details && data.details.includes('Bad credentials')) || (data.error && data.error.includes('401'))) {
-          throw new Error('Token GitHub bị từ chối (401 Bad credentials)! Token này đã bị GitHub tự động thu hồi (do lộ ra ngoài) hoặc hết hạn. Vui lòng tạo Token mới trên GitHub và lưu vào "Cài đặt Hệ thống & API".')
-        }
-        throw new Error(data.error || 'Lỗi khi tải tệp lên kho GitHub.')
-      }
 
       // Cập nhật thông tin ứng viên
       const updatedCandidate = {
@@ -238,7 +225,7 @@ export default function CandidatePdfViewer({
       if (candidate.id) {
         try {
           await supabase
-            .from('sgc_ung_vien')
+            .from('danh_sach_thu_kho')
             .update({
               file_name: data.fileName,
               file_url: data.downloadUrl,
@@ -338,6 +325,7 @@ export default function CandidatePdfViewer({
           data: new Uint8Array(arrayBuffer),
           cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/cmaps/',
           cMapPacked: true,
+          standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/standard_fonts/',
         })
 
         const doc = await loadingTask.promise
