@@ -18,12 +18,33 @@ import {
 
 export default function App() {
   const [tab, setTab] = useState('duan')
+  // `data` = TOÀN BỘ các dòng của bảng danh_sach_thu_kho — bảng DUY NHẤT dùng chung cho cả
+  // ứng viên tuyển dụng (Mã NV còn trống) LẪN nhân sự chính thức (đã có Mã NV).
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [dbStatus, setDbStatus] = useState('loading') // 'loading' | 'connected' | 'empty' | 'error'
   const [isPinned, setIsPinned] = useState(false)
   const [initialDuAnFilter, setInitialDuAnFilter] = useState('')
   const [initialDuAnSearch, setInitialDuAnSearch] = useState('')
+
+  // Chỉ những dòng ĐÃ CÓ Mã NV mới được coi là nhân sự chính thức — dùng cho các sheet
+  // Định biên / Phân bổ dự án / Thông tin dự án (tính số lượng thực tế, quota...). Ứng viên
+  // chưa có Mã NV (đang ở sheet Tuyển dụng nhân sự) KHÔNG được tính vào đây, tránh làm sai
+  // lệch số liệu nhân sự.
+  const officialData = useMemo(() => data.filter(d => d.maNV), [data])
+
+  // Wrapper cho onUpdateData của DuAnTab: DuAnTab chỉ thao tác trên officialData (đã lọc),
+  // nhưng khi ghi ngược lại state của App, phải GHÉP LẠI với các dòng ứng viên (chưa có Mã
+  // NV) để không bị mất khỏi state chung — DuAnTab gọi onUpdateData(newArray) hoặc
+  // onUpdateData(prev => ...), cả 2 dạng đều được hỗ trợ.
+  const handleUpdateOfficialData = (updater) => {
+    setData(prevFull => {
+      const prevOfficial = prevFull.filter(d => d.maNV)
+      const candidateRows = prevFull.filter(d => !d.maNV)
+      const nextOfficial = typeof updater === 'function' ? updater(prevOfficial) : updater
+      return [...(nextOfficial || []), ...candidateRows]
+    })
+  }
 
   // Hàm tải dữ liệu thực tế từ Supabase
   const loadData = async () => {
@@ -83,10 +104,15 @@ export default function App() {
 
   const [recruitmentCount, setRecruitmentCount] = useState(0)
 
-  // Hàm xử lý khi ứng viên được tuyển dụng thành công -> chuyển sang Danh sách thủ kho
+  // Hàm xử lý khi ứng viên được tuyển dụng thành công. Vì Tuyển dụng nhân sự và Danh sách
+  // thủ kho giờ dùng CHUNG một bảng (danh_sach_thu_kho), "tuyển dụng" = CẬP NHẬT ma_nv trên
+  // CHÍNH dòng hồ sơ CV đang có (candidate.id là id thật/uuid của dòng đó) — KHÔNG insert
+  // dòng mới, tránh tạo ra 2 bản ghi trùng lặp cho cùng một người.
   const handleRecruitSuccess = async (candidate, officialMaNV, officialDuAn, officialChucVu, officialKhoi) => {
     try {
-      const maxStt = data.reduce((max, item) => Math.max(max, Number(item.stt) || 0), 0)
+      // Đánh số thứ tự (stt) theo nhân sự CHÍNH THỨC (đã có Mã NV) để không lẫn với số thứ
+      // tự nội bộ của danh sách ứng viên bên sheet Tuyển dụng.
+      const maxStt = officialData.reduce((max, item) => Math.max(max, Number(item.stt) || 0), 0)
       
       let birthDateStr = candidate.ngaySinh || ''
       if (!birthDateStr && candidate.hoTen && candidate.hoTen.includes('Minh Châu')) {
@@ -157,27 +183,63 @@ export default function App() {
         console.warn('Lỗi lưu PDF theo mã NV thủ kho:', pdfErr)
       }
 
-      // Ghi nhận vào Supabase với cơ chế loại bỏ cột lỗi (column pruning)
+      // Ghi nhận vào Supabase với cơ chế loại bỏ cột lỗi (column pruning).
+      // CẬP NHẬT (update) dòng đã có theo id, KHÔNG insert dòng mới — dòng này chính là hồ
+      // sơ CV đang nằm ở sheet Tuyển dụng nhân sự (Mã NV đang trống), giờ chỉ điền thêm
+      // Mã NV + các thông tin chính thức vào ĐÚNG dòng đó.
       let success = false
       let attempts = 0
       const maxAttempts = 40
       let currentPayload = { ...payload }
+      let matchedExistingRow = false
+
+      const candidateHasRealId = candidate.id && !String(candidate.id).startsWith('cand-')
 
       while (!success && attempts < maxAttempts) {
         attempts++
-        const { error } = await supabase.from('danh_sach_thu_kho').insert(currentPayload)
-        if (!error) {
-          success = true
+        if (candidateHasRealId) {
+          const { data: updRows, error } = await supabase
+            .from('danh_sach_thu_kho')
+            .update(currentPayload)
+            .eq('id', candidate.id)
+            .select()
+          if (!error) {
+            success = true
+            matchedExistingRow = Array.isArray(updRows) && updRows.length > 0
+            break
+          }
+          const errMsg = error.message || ''
+          const match = errMsg.match(/Could not find the '(.*?)' column/)
+          if (match && match[1]) {
+            delete currentPayload[match[1]]
+            continue
+          }
+          console.warn('Supabase update warning:', error)
           break
-        }
-        const errMsg = error.message || ''
-        const match = errMsg.match(/Could not find the '(.*?)' column/)
-        if (match && match[1]) {
-          delete currentPayload[match[1]]
         } else {
-          console.warn('Supabase insert warning:', error)
-          break
+          // Phòng hờ: nếu candidate chưa từng có id thật trên Supabase (VD: đồng bộ lỗi
+          // trước đó), chèn dòng mới thay vì cập nhật vào chỗ không tồn tại.
+          const { error } = await supabase.from('danh_sach_thu_kho').insert(currentPayload)
+          if (!error) {
+            success = true
+            break
+          }
+          const errMsg = error.message || ''
+          const match = errMsg.match(/Could not find the '(.*?)' column/)
+          if (match && match[1]) {
+            delete currentPayload[match[1]]
+          } else {
+            console.warn('Supabase insert warning:', error)
+            break
+          }
         }
+      }
+
+      // Nếu cố cập nhật theo id thật nhưng không khớp dòng nào (VD: dòng đã bị xóa ở nơi
+      // khác) thì chèn dòng mới để KHÔNG làm mất thông tin ứng viên vừa tuyển.
+      if (success && candidateHasRealId && !matchedExistingRow) {
+        console.warn('Không tìm thấy dòng ứng viên theo id để cập nhật, chèn dòng mới thay thế.')
+        await supabase.from('danh_sach_thu_kho').insert(currentPayload)
       }
 
       // Tải lại dữ liệu chính thức
@@ -248,7 +310,7 @@ export default function App() {
             <>
               {tab === 'tuyendung' && (
                 <TuyenDungTab
-                  existingThuKhoData={data}
+                  existingThuKhoData={officialData}
                   onRecruitSuccess={handleRecruitSuccess}
                   onNavigateToStorekeeper={handleNavigateToStorekeeper}
                   dbStatus={dbStatus}
@@ -256,11 +318,11 @@ export default function App() {
                   onReload={loadData}
                 />
               )}
-              {tab === 'thongtinduan' && <ThongTinDuAnTab data={data} onReload={loadData} />}
+              {tab === 'thongtinduan' && <ThongTinDuAnTab data={officialData} onReload={loadData} />}
               {tab === 'duan' && (
                 <DuAnTab
-                  data={data}
-                  onUpdateData={setData}
+                  data={officialData}
+                  onUpdateData={handleUpdateOfficialData}
                   onReload={loadData}
                   initialSearch={initialDuAnSearch}
                   setInitialSearch={setInitialDuAnSearch}
@@ -268,7 +330,7 @@ export default function App() {
                   setInitialProjectFilter={setInitialDuAnFilter}
                 />
               )}
-              {tab === 'dinhbien' && <DinhBienTab data={data} onReload={loadData} />}
+              {tab === 'dinhbien' && <DinhBienTab data={officialData} onReload={loadData} />}
             </>
           )}
         </main>

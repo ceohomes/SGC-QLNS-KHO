@@ -134,8 +134,10 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
         chung_chi_nghiep_vu_kho: updatedRow.chungChiNghiepVuKho,
         chung_chi_atld: updatedRow.chungChiATLD,
         danh_gia_hieu_suat: updatedRow.danhGiaHieuSuat,
-        danh_gia: updatedRow.danhGiaHieuSuat,
-        ai_danh_gia: updatedRow.aiDanhGia,
+        // Cột "danh_gia" đổi tên từ ai_danh_gia (nhận xét AI khi quét CV), theo yêu cầu dùng
+        // CHUNG với "Đánh giá hiệu suất" nhân viên — 2 tính năng ghi đè lẫn nhau trên cùng 1
+        // cột: ưu tiên nhận xét AI nếu có, không thì dùng đánh giá hiệu suất.
+        danh_gia: updatedRow.aiDanhGia || updatedRow.danhGiaHieuSuat,
         so_dien_thoai_khan_cap: updatedRow.soDienThoaiKhanCap,
         ghi_chu: updatedRow.ghiChu
       }

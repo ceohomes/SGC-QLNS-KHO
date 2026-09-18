@@ -22,7 +22,7 @@ export const STOREKEEPER_DB_COLUMNS = [
   'so_nam_kinh_nghiem',
   'kinh_nghiem',
   'ky_nang',
-  'ai_danh_gia',
+  'danh_gia',
   'diem_phu_hop',
   'gioi_tinh',
   'tuoi',
@@ -38,7 +38,14 @@ export const STOREKEEPER_DB_COLUMNS = [
   'du_an',
   'ban_chuoi_khoi',
   'so_dien_thoai',
-  'email_cong_ty'
+  'email_cong_ty',
+  // 2 cột bổ sung để gộp luồng "Tuyển dụng nhân sự" (hồ sơ CV) vào CHUNG bảng
+  // danh_sach_thu_kho thay vì tạo bảng riêng sgc_tuyen_dung_ung_vien.
+  // Ứng viên chưa có Mã NV (ma_nv rỗng) = đang ở sheet Tuyển dụng nhân sự.
+  // Khi được cấp Mã NV, CÙNG MỘT DÒNG này được cập nhật -> tự động chuyển
+  // sang sheet Thông tin dự án / Định biên / Phân bổ dự án.
+  'ngay_ung_tuyen',
+  'is_parsed_with_ai'
 ]
 
 /**
@@ -99,7 +106,9 @@ export function buildThuKhoDbPayload(item) {
     so_nam_kinh_nghiem: (item.soNamKinhNghiem != null && item.soNamKinhNghiem !== '') ? Number(item.soNamKinhNghiem) : null,
     kinh_nghiem: item.kinhNghiem || item.kinh_nghiem || '',
     ky_nang: item.kyNang || item.ky_nang || '',
-    ai_danh_gia: item.aiDanhGia || item.ai_danh_gia || '',
+    // Cột Supabase đổi tên từ ai_danh_gia -> danh_gia (theo yêu cầu); giữ nguyên tên biến
+    // JS "aiDanhGia" trong toàn app, chỉ đổi cột lưu ở DB.
+    danh_gia: item.aiDanhGia || item.danh_gia || item.ai_danh_gia || '',
     diem_phu_hop: (item.diemPhuHop != null && item.diemPhuHop !== '') ? Number(item.diemPhuHop) : null,
     gioi_tinh: item.gioiTinh || item.gioi_tinh || 'Nam',
     tuoi: computedTuoi,
@@ -115,7 +124,9 @@ export function buildThuKhoDbPayload(item) {
     du_an: duAn,
     ban_chuoi_khoi: banChuoiKhoi,
     so_dien_thoai: phone,
-    email_cong_ty: email
+    email_cong_ty: email,
+    ngay_ung_tuyen: item.ngayUngTuyen || item.ngay_ung_tuyen || '',
+    is_parsed_with_ai: item.isParsedWithAI != null ? Boolean(item.isParsedWithAI) : (item.is_parsed_with_ai != null ? Boolean(item.is_parsed_with_ai) : false)
   }
 
   return payload
@@ -161,7 +172,7 @@ export function mapDbToThuKho(r, matchedCand = null) {
     soNamKinhNghiem: r.so_nam_kinh_nghiem != null ? Number(r.so_nam_kinh_nghiem) : null,
     kinhNghiem: r.kinh_nghiem || '',
     kyNang: r.ky_nang || '',
-    aiDanhGia: r.ai_danh_gia || '',
+    aiDanhGia: r.danh_gia || r.ai_danh_gia || '',
     diemPhuHop: r.diem_phu_hop != null ? Number(r.diem_phu_hop) : null,
     gioiTinh: r.gioi_tinh || 'Nam',
     cccd: r.cccd || '',
@@ -172,6 +183,8 @@ export function mapDbToThuKho(r, matchedCand = null) {
     fileName: r.file_name || matchedCand?.fileName || '',
     fileUrl: r.file_url || matchedCand?.fileUrl || '',
     githubUrl: r.github_url || matchedCand?.githubUrl || '',
+    ngayUngTuyen: r.ngay_ung_tuyen || (r.created_at ? String(r.created_at).split('T')[0] : ''),
+    isParsedWithAI: r.is_parsed_with_ai != null ? Boolean(r.is_parsed_with_ai) : false,
     candidateId: matchedCand?.id || '',
     fileDataUrl: matchedCand?.fileDataUrl || ''
   }

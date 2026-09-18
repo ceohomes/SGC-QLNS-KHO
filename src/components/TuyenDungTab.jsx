@@ -29,51 +29,36 @@ import {
 } from '../pdfStorage.js'
 
 // SQL schema for Supabase live persistence
+// GHI CHÚ QUAN TRỌNG: Kể từ bản này, Tuyển dụng nhân sự KHÔNG còn dùng bảng riêng
+// sgc_tuyen_dung_ung_vien nữa — hồ sơ CV được lưu CHUNG vào bảng danh_sach_thu_kho
+// (bảng đã dùng cho Định biên / Phân bổ dự án / Thông tin dự án). Quy ước: Mã NV (ma_nv)
+// còn trống = ứng viên đang ở sheet Tuyển dụng; khi được cấp Mã NV, CÙNG MỘT DÒNG được cập
+// nhật (không tạo dòng mới) và tự động chuyển sang các sheet chính thức. Đoạn SQL dưới đây
+// chỉ BỔ SUNG 2 CỘT còn thiếu (nếu chưa có) cho bảng danh_sach_thu_kho, không tạo bảng mới.
+// (Không dùng cột chung_chi — thông tin chứng chỉ của ứng viên chỉ giữ trong dữ liệu ứng
+// dụng, không lưu lên Supabase. Cột nhận xét AI dùng chung tên "danh_gia" với cột Đánh giá
+// hiệu suất đã có sẵn trên bảng — xem ghi chú ở mapDbToCandidate/mapCandidateToDb.)
 export const SQL_CODE_TUYEN_DUNG = `-- -------------------------------------------------------------
--- BẢNG QUẢN LÝ ỨNG VIÊN TUYỂN DỤNG THỦ KHO (sgc_tuyen_dung_ung_vien)
--- Vui lòng chạy đoạn mã này trong SQL Editor của Supabase để liên thông dữ liệu!
+-- BỔ SUNG CỘT CHO BẢNG danh_sach_thu_kho ĐỂ LƯU CHUNG HỒ SƠ TUYỂN DỤNG (CV)
+-- Vui lòng chạy đoạn mã này trong SQL Editor của Supabase — an toàn, chạy lại nhiều lần
+-- không lỗi (IF NOT EXISTS) và KHÔNG xóa/không tạo bảng mới nào.
 -- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS sgc_tuyen_dung_ung_vien (
-    id TEXT PRIMARY KEY,
-    stt INTEGER,
-    ho_ten TEXT NOT NULL,
-    so_dien_thoai TEXT,
-    email TEXT,
-    ngay_sinh TEXT,
-    tuoi INTEGER,
-    gioi_tinh TEXT,
-    cccd TEXT,
-    que_quan TEXT,
-    dia_chi TEXT,
-    chuc_vu TEXT,
-    du_an TEXT,
-    trinh_do TEXT,
-    chuyen_nganh TEXT,
-    so_nam_kinh_nghiem NUMERIC,
-    kinh_nghiem TEXT,
-    ky_nang TEXT,
-    chung_chi TEXT,
-    ai_danh_gia TEXT,
-    diem_phu_hop NUMERIC,
-    trang_thai TEXT,
-    ma_nv TEXT,
-    file_name TEXT,
-    file_url TEXT,
-    github_url TEXT,
-    ngay_ung_tuyen TEXT,
-    ghi_chu TEXT,
-    is_parsed_with_ai BOOLEAN DEFAULT false,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
+ALTER TABLE danh_sach_thu_kho ADD COLUMN IF NOT EXISTS ngay_ung_tuyen TEXT;
+ALTER TABLE danh_sach_thu_kho ADD COLUMN IF NOT EXISTS is_parsed_with_ai BOOLEAN DEFAULT false;
 
--- Kích hoạt Row Level Security (RLS) để bảo mật
-ALTER TABLE sgc_tuyen_dung_ung_vien ENABLE ROW LEVEL SECURITY;
+-- Đảm bảo RLS đang bật và có đủ policy đọc/ghi công khai (nếu đã có sẵn từ trước thì
+-- đoạn DROP...CREATE dưới đây chỉ tạo lại y hệt, không ảnh hưởng gì tới dữ liệu hiện có).
+ALTER TABLE danh_sach_thu_kho ENABLE ROW LEVEL SECURITY;
 
--- Tạo các chính sách cho phép đọc / ghi tự do
-CREATE POLICY "Allow public read for sgc_tuyen_dung_ung_vien" ON sgc_tuyen_dung_ung_vien FOR SELECT USING (true);
-CREATE POLICY "Allow public insert for sgc_tuyen_dung_ung_vien" ON sgc_tuyen_dung_ung_vien FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update for sgc_tuyen_dung_ung_vien" ON sgc_tuyen_dung_ung_vien FOR UPDATE USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public delete for sgc_tuyen_dung_ung_vien" ON sgc_tuyen_dung_ung_vien FOR DELETE USING (true);`
+DROP POLICY IF EXISTS "Allow public read for danh_sach_thu_kho" ON danh_sach_thu_kho;
+DROP POLICY IF EXISTS "Allow public insert for danh_sach_thu_kho" ON danh_sach_thu_kho;
+DROP POLICY IF EXISTS "Allow public update for danh_sach_thu_kho" ON danh_sach_thu_kho;
+DROP POLICY IF EXISTS "Allow public delete for danh_sach_thu_kho" ON danh_sach_thu_kho;
+
+CREATE POLICY "Allow public read for danh_sach_thu_kho" ON danh_sach_thu_kho FOR SELECT USING (true);
+CREATE POLICY "Allow public insert for danh_sach_thu_kho" ON danh_sach_thu_kho FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update for danh_sach_thu_kho" ON danh_sach_thu_kho FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public delete for danh_sach_thu_kho" ON danh_sach_thu_kho FOR DELETE USING (true);`
 
 export function mapDbToCandidate(r) {
   if (!r) return null
@@ -86,23 +71,29 @@ export function mapDbToCandidate(r) {
     id: r.id,
     stt: r.stt,
     hoTen: r.ho_ten || '',
-    soDienThoai: r.so_dien_thoai || '',
-    email: r.email || '',
+    soDienThoai: r.so_dien_thoai || r.dien_thoai || '',
+    email: r.email || r.email_cong_ty || '',
     ngaySinh: r.ngay_sinh ? formatDate(r.ngay_sinh) : '',
     tuoi: r.tuoi || null,
     gioiTinh: r.gioi_tinh || 'Nam',
     cccd: r.cccd || '',
     queQuan: r.que_quan || '',
     diaChi: r.dia_chi || '',
-    chucVu: r.chuc_vu || '',
-    duAn: r.du_an || '',
+    chucVu: r.chuc_vu || r.chuc_danh || '',
+    duAn: r.du_an || r.du_an_cong_trinh || '',
+    banChuoiKhoi: r.ban_chuoi_khoi || r.khoi_thi_cong || '',
     trinhDo: r.trinh_do || '',
     chuyenNganh: r.chuyen_nganh || '',
     soNamKinhNghiem: Number(r.so_nam_kinh_nghiem || 0),
     kinhNghiem: r.kinh_nghiem || '',
     kyNang: r.ky_nang || '',
-    chungChi: r.chung_chi || '',
-    aiDanhGia: r.ai_danh_gia || '',
+    // Không còn cột chung_chi trên Supabase — trường này chỉ tồn tại trong phiên làm việc
+    // hiện tại (VD: vừa quét CV xong), sẽ mất khi tải lại trang.
+    chungChi: '',
+    // Cột Supabase đổi tên ai_danh_gia -> danh_gia (dùng CHUNG với cột "Đánh giá hiệu suất"
+    // nhân viên ở sheet Danh sách thủ kho / Phân bổ dự án — 2 tính năng này giờ dùng chung
+    // 1 cột theo yêu cầu, ghi đè lẫn nhau).
+    aiDanhGia: r.danh_gia || '',
     diemPhuHop: Number(r.diem_phu_hop || 0),
     trangThai: r.trang_thai || 'Tiếp nhận CV',
     maNV: r.ma_nv || '',
@@ -126,28 +117,39 @@ export function mapCandidateToDb(c) {
     }
   }
 
+  const chucVuVal = c.chucVu || ''
+  const duAnVal = c.duAn || ''
+  const phoneVal = c.soDienThoai || ''
+  const emailVal = c.email || ''
+  const khoiVal = c.banChuoiKhoi || c.khoiThiCong || ''
+
   return {
     id: c.id,
     stt: c.stt || null,
     ho_ten: c.hoTen || '',
-    so_dien_thoai: c.soDienThoai || '',
-    email: c.email || '',
+    so_dien_thoai: phoneVal,
+    email: emailVal,
     ngay_sinh: isoNgaySinh,
     tuoi: c.tuoi || null,
     gioi_tinh: c.gioiTinh || 'Nam',
     cccd: c.cccd || '',
     que_quan: c.queQuan || '',
     dia_chi: c.diaChi || '',
-    chuc_vu: c.chucVu || '',
-    du_an: c.duAn || '',
+    chuc_vu: chucVuVal,
+    du_an: duAnVal,
     trinh_do: c.trinhDo || '',
     chuyen_nganh: c.chuyenNganh || '',
     so_nam_kinh_nghiem: Number(c.soNamKinhNghiem || 0),
     kinh_nghiem: c.kinhNghiem || '',
     ky_nang: c.kyNang || '',
-    chung_chi: c.chungChi || '',
-    ai_danh_gia: c.aiDanhGia || '',
+    // Không lưu chung_chi lên Supabase (không dùng tới) — bỏ khỏi payload ghi DB.
+    // Cột nhận xét AI đổi tên ai_danh_gia -> danh_gia (dùng chung với cột "Đánh giá hiệu
+    // suất" nhân viên đã có sẵn trên bảng, theo yêu cầu).
+    danh_gia: c.aiDanhGia || '',
     diem_phu_hop: Number(c.diemPhuHop || 0),
+    // Bảng danh_sach_thu_kho dùng chung cho cả ứng viên (chưa có Mã NV) lẫn nhân sự chính
+    // thức, nên trạng thái mặc định của ứng viên mới vẫn là 'Tiếp nhận CV' (không phải
+    // 'Đang làm việc') để không bị các sheet Định biên/Phân bổ dự án hiểu nhầm là đã tuyển.
     trang_thai: c.trangThai || 'Tiếp nhận CV',
     ma_nv: c.maNV || '',
     file_name: c.fileName || '',
@@ -155,7 +157,15 @@ export function mapCandidateToDb(c) {
     github_url: c.githubUrl || '',
     ngay_ung_tuyen: c.ngayUngTuyen || new Date().toISOString().split('T')[0],
     ghi_chu: c.ghiChu || '',
-    is_parsed_with_ai: !!c.isParsedWithAI
+    is_parsed_with_ai: !!c.isParsedWithAI,
+    // Các cột "song song" (tên khác) mà một số sheet khác (Phân bổ dự án, Định biên...) đọc —
+    // ghi cùng giá trị để hiển thị nhất quán dù đọc theo tên cột nào.
+    chuc_danh: chucVuVal,
+    du_an_cong_trinh: duAnVal,
+    dien_thoai: phoneVal,
+    email_cong_ty: emailVal,
+    khoi_thi_cong: khoiVal,
+    ban_chuoi_khoi: khoiVal
   }
 }
 
@@ -309,6 +319,12 @@ export default function TuyenDungTab({
   const [loadingSupabase, setLoadingSupabase] = useState(false)
   const [showSqlModal, setShowSqlModal] = useState(false)
   const [copiedSql, setCopiedSql] = useState(false)
+  // Thông báo lỗi đồng bộ Supabase gần nhất (hiển thị cho người dùng thay vì chỉ console.warn ẩn)
+  const [syncError, setSyncError] = useState(null)
+  // Ghi nhớ những id (tạm hoặc thật) đã từng INSERT thành công lên Supabase, để tránh
+  // insert trùng lặp khi cùng một lô hồ sơ CV được "onAddCandidates" gọi nhiều lần
+  // (VD: tự động lưu khi quét xong, rồi người dùng bấm thêm nút "Lưu vào bảng tuyển dụng").
+  const syncedCandidateIdsRef = useRef(new Set())
 
   // Danh sách dự án thực tế liên thông từ bảng sgc_thong_tin_du_an_projects trên Supabase
   const [dbProjects, setDbProjects] = useState([])
@@ -336,20 +352,83 @@ export default function TuyenDungTab({
     return list.length > 0 ? list : ['Chưa phân bổ']
   }, [dbProjects, existingThuKhoData])
 
-  // Tải danh sách ứng viên trực tiếp từ Supabase sgc_tuyen_dung_ung_vien
+  // Ánh xạ lại id tạm (client-side, VD 'cand-172...') sang id thật (uuid) mà Supabase vừa
+  // sinh ra sau khi insert, đồng thời "re-key" lại file PDF đã lưu trong IndexedDB theo id
+  // tạm sang id thật — để trình xem CV vẫn tìm đúng file sau khi tải lại trang.
+  const remapTempIdsToRealIds = async (idRemap) => {
+    if (!idRemap || idRemap.size === 0) return
+    setCandidates(prev => prev.map(c => idRemap.has(c.id) ? { ...c, id: idRemap.get(c.id) } : c))
+    try {
+      const savedLocal = localStorage.getItem('sgc_tuyen_dung_candidates')
+      if (savedLocal) {
+        const parsedLocal = JSON.parse(savedLocal)
+        if (Array.isArray(parsedLocal)) {
+          const remapped = parsedLocal.map(c => idRemap.has(c.id) ? { ...c, id: idRemap.get(c.id) } : c)
+          localStorage.setItem('sgc_tuyen_dung_candidates', JSON.stringify(remapped))
+        }
+      }
+    } catch (e) {
+      console.warn('Lỗi cập nhật localStorage sau khi ánh xạ id Supabase:', e)
+    }
+    for (const [tempId, realId] of idRemap.entries()) {
+      try {
+        const blob = (await getOriginalCandidatePdf(tempId)) || (await getCandidatePdf(tempId))
+        if (blob) {
+          await saveCandidatePdf(realId, blob, true)
+          await saveOriginalCandidatePdf(realId, blob)
+        }
+      } catch (pdfErr) {
+        console.warn('Lỗi re-key PDF theo id Supabase:', pdfErr)
+      }
+    }
+  }
+
+  // Chèn danh sách ứng viên lên bảng danh_sach_thu_kho (bảng DUY NHẤT, dùng chung với các
+  // sheet Định biên / Phân bổ dự án / Thông tin dự án). Cột `id` của bảng là UUID do Postgres
+  // tự sinh — KHÔNG được gửi id tạm (client-side) lên, nếu không insert sẽ báo lỗi
+  // "invalid input syntax for type uuid". Trả về map {id tạm -> id thật} để gọi remapTempIdsToRealIds.
+  const insertCandidatesToDb = async (items) => {
+    const rows = items.map(c => {
+      const payload = mapCandidateToDb(c)
+      delete payload.id
+      return payload
+    })
+    const { data: inserted, error } = await supabase
+      .from('danh_sach_thu_kho')
+      .insert(rows)
+      .select()
+    if (error) throw error
+    const idRemap = new Map()
+    if (Array.isArray(inserted)) {
+      items.forEach((c, idx) => {
+        const realId = inserted[idx]?.id
+        if (realId && realId !== c.id) idRemap.set(c.id, realId)
+      })
+    }
+    return { inserted, idRemap }
+  }
+
+  // Tải danh sách ứng viên TUYỂN DỤNG trực tiếp từ Supabase — dùng CHUNG một bảng
+  // danh_sach_thu_kho với các sheet Định biên / Phân bổ dự án / Thông tin dự án.
+  // Quy ước: Mã NV (ma_nv) CÒN TRỐNG = đang ở sheet Tuyển dụng nhân sự (ứng viên/CV, chưa
+  // chính thức tuyển dụng). Khi được cấp Mã NV, CÙNG MỘT DÒNG này được cập nhật (không xoá,
+  // không tạo dòng mới) và tự động biến mất khỏi sheet này để hiện sang các sheet chính thức.
   const loadCandidatesFromSupabase = async () => {
     setLoadingSupabase(true)
     try {
       const { data, error } = await supabase
-        .from('sgc_tuyen_dung_ung_vien')
+        .from('danh_sach_thu_kho')
         .select('*')
+        .or('ma_nv.is.null,ma_nv.eq.')
         .order('created_at', { ascending: false })
 
       if (error) {
         if (error.code === '42P01' || error.message?.includes('schema cache') || error.message?.includes('does not exist') || error.code === 'PGRST205') {
           setSupabaseCandidateStatus('not_created')
+          setSyncError(null) // chưa tạo bảng là trạng thái đã có hướng dẫn riêng (nút "Mã SQL Supabase"), không cần banner lỗi
         } else {
           setSupabaseCandidateStatus('error')
+          setSyncError(error.message || 'Không thể kết nối tới Supabase')
         }
         // Giữ nguyên dữ liệu trong localStorage, tuyệt đối không xóa sạch
         return
@@ -358,24 +437,94 @@ export default function TuyenDungTab({
       if (Array.isArray(data)) {
         if (data.length > 0) {
           const mapped = data.map(mapDbToCandidate).map(normalizeCandidate)
+          mapped.forEach(c => syncedCandidateIdsRef.current.add(c.id))
           setCandidates(mapped)
           setSupabaseCandidateStatus('connected')
+          setSyncError(null)
           localStorage.setItem('sgc_tuyen_dung_candidates', JSON.stringify(mapped.map(c => {
             const { fileDataUrl, ...rest } = c
             return rest
           })))
         } else {
-          // Supabase là nguồn dữ liệu chính thức và hiện đang trống -> đồng bộ về trống,
-          // tuyệt đối không giữ lại các ứng viên mẫu/cũ để tránh hồi sinh hồ sơ đã xóa
+          // Chưa có ứng viên nào (ma_nv trống) trên Supabase. TRƯỚC KHI coi Supabase là
+          // "nguồn chính thức" và đồng bộ về trống (có thể xóa mất dữ liệu cũ), thử ĐẨY
+          // dữ liệu đang có trên máy này (localStorage) lên Supabase MỘT LẦN DUY NHẤT —
+          // tránh mất trắng hồ sơ khi lần đầu chuyển sang lưu chung 1 bảng.
+          const alreadyMigrated = localStorage.getItem('sgc_tuyen_dung_migrated_v2')
+          let localCandidatesRaw = []
+          try {
+            const savedLocal = localStorage.getItem('sgc_tuyen_dung_candidates')
+            if (savedLocal) {
+              const parsedLocal = JSON.parse(savedLocal)
+              if (Array.isArray(parsedLocal)) {
+                // Chỉ di chuyển các ứng viên CHƯA có Mã NV — người đã có Mã NV coi như đã
+                // từng được tuyển, không đưa trở lại sheet Tuyển dụng.
+                localCandidatesRaw = parsedLocal.filter(c => c && c.hoTen && c.id && c.id !== 'rec-000' && !c.maNV)
+              }
+            }
+          } catch (e) {
+            console.warn('Lỗi đọc localStorage để di chuyển dữ liệu lên Supabase:', e)
+          }
+
+          if (!alreadyMigrated && localCandidatesRaw.length > 0) {
+            try {
+              const normalized = localCandidatesRaw.map(normalizeCandidate)
+              // CHỈ ghi vào bảng danh_sach_thu_kho (bảng duy nhất). Mã NV (ma_nv) của các
+              // ứng viên chưa được tuyển dụng chính thức vẫn để trống ('' như trong dữ liệu gốc).
+              const { idRemap } = await insertCandidatesToDb(normalized)
+              await remapTempIdsToRealIds(idRemap)
+
+              localStorage.setItem('sgc_tuyen_dung_migrated_v2', '1')
+
+              const { data: reloaded, error: reloadErr } = await supabase
+                .from('danh_sach_thu_kho')
+                .select('*')
+                .or('ma_nv.is.null,ma_nv.eq.')
+                .order('created_at', { ascending: false })
+              if (!reloadErr && Array.isArray(reloaded)) {
+                const mapped = reloaded.map(mapDbToCandidate).map(normalizeCandidate)
+                setCandidates(mapped)
+                localStorage.setItem('sgc_tuyen_dung_candidates', JSON.stringify(mapped.map(c => {
+                  const { fileDataUrl, ...rest } = c
+                  return rest
+                })))
+              }
+              setSupabaseCandidateStatus('connected')
+              setSyncError(null)
+              showAlert(
+                `Đã tự động đồng bộ ${localCandidatesRaw.length} hồ sơ đang lưu trên máy này lên Supabase (bảng danh_sach_thu_kho, Mã NV để trống vì chưa chính thức tuyển dụng).`,
+                'success',
+                'Đồng bộ Supabase thành công'
+              )
+              return
+            } catch (migrateErr) {
+              console.warn('Lỗi tự động đẩy dữ liệu local lên Supabase:', migrateErr)
+              setSyncError(migrateErr.message || 'Không thể đẩy dữ liệu lên Supabase')
+              setSupabaseCandidateStatus('error')
+              showAlert(
+                `Có ${localCandidatesRaw.length} hồ sơ trên máy này CHƯA đẩy lên Supabase được (${migrateErr.message || 'lỗi không xác định'}). Dữ liệu trên máy VẪN ĐƯỢC GIỮ NGUYÊN, chưa bị xóa. Vui lòng kiểm tra lại bảng/quyền truy cập (RLS) trên Supabase rồi bấm "Thử lại".`,
+                'error',
+                'Đồng bộ Supabase thất bại'
+              )
+              // KHÔNG xóa local — return sớm để không rơi vào nhánh "đồng bộ về trống" bên dưới
+              return
+            }
+          }
+
+          // Supabase hiện không có ứng viên nào chưa cấp Mã NV (đã di chuyển xong ở trên,
+          // hoặc trên máy vốn không có dữ liệu gì) -> đồng bộ về trống, tuyệt đối không giữ lại
+          // các ứng viên mẫu/cũ để tránh hồi sinh hồ sơ đã xóa
           setCandidates([])
           localStorage.setItem('sgc_tuyen_dung_candidates', JSON.stringify([]))
           localStorage.setItem('sgc_tuyen_dung_initialized', '1')
           setSupabaseCandidateStatus('connected')
+          setSyncError(null)
         }
       }
     } catch (err) {
       console.warn('Lỗi tải ứng viên từ Supabase:', err)
       setSupabaseCandidateStatus('error')
+      setSyncError(err.message || 'Không thể kết nối tới Supabase')
     } finally {
       setLoadingSupabase(false)
     }
@@ -635,24 +784,11 @@ export default function TuyenDungTab({
       setRecruitingCandidate(null)
       setSelectedCandidate(null)
 
-      // Cập nhật trạng thái ứng viên trên Supabase nếu đã kết nối
-      if (supabaseCandidateStatus === 'connected') {
-        try {
-          await supabase
-            .from('sgc_tuyen_dung_ung_vien')
-            .update({
-              trang_thai: 'Đã tuyển dụng',
-              ma_nv: maNV,
-              du_an: selectedOfficialDuAn || recruitingCandidate.duAn,
-              chuc_vu: selectedOfficialChucVu || recruitingCandidate.chucVu
-            })
-            .eq('id', recruitingCandidate.id)
-        } catch (dbErr) {
-          console.warn('Lỗi cập nhật Supabase tuyển dụng:', dbErr)
-        }
-      }
-
-      // 2. Call parent to insert into Supabase / storekeeper data and automatically jump to DanhSachTab!
+      // GHI CHÚ: Vì Tuyển dụng nhân sự và Danh sách thủ kho giờ dùng CHUNG một bảng
+      // (danh_sach_thu_kho), việc "tuyển dụng" ứng viên = CẬP NHẬT ma_nv trên CHÍNH dòng
+      // đang có (không insert dòng mới, không update 2 lần ở 2 nơi). Việc ghi lên Supabase
+      // được giao hẳn cho App.jsx (handleRecruitSuccess) — nơi DUY NHẤT thực hiện update
+      // theo id thật của dòng này — để tránh 2 chỗ cùng ghi đè lên nhau.
       if (onRecruitSuccess) {
         await onRecruitSuccess(recruitedCandidate, maNV, selectedOfficialDuAn, selectedOfficialChucVu, selectedOfficialKhoi)
       }
@@ -698,23 +834,25 @@ export default function TuyenDungTab({
         })
         removeCandidatePdf(candidate.id)
         setAlertConfig(null)
-        if (supabaseCandidateStatus === 'connected') {
+        // Vì Tuyển dụng nhân sự và Danh sách thủ kho giờ dùng CHUNG một bảng
+        // (danh_sach_thu_kho), xóa ứng viên = xóa THẲNG dòng này theo id — không cần xóa
+        // thêm lần 2 theo mã NV ở "bảng liên thông" nữa (không còn 2 bảng tách biệt).
+        if (supabaseCandidateStatus !== 'not_created') {
           try {
-            await supabase.from('sgc_tuyen_dung_ung_vien').delete().eq('id', candidate.id)
+            const { error: delErr } = await supabase.from('danh_sach_thu_kho').delete().eq('id', candidate.id)
+            if (delErr) throw delErr
+            setSyncError(null)
           } catch (dbErr) {
             console.warn('Lỗi xóa ứng viên trên Supabase:', dbErr)
+            setSyncError(dbErr.message || 'Không thể đồng bộ lên Supabase')
+            showAlert(
+              `Đã xóa ứng viên trên máy này, nhưng KHÔNG xóa được trên Supabase (${dbErr.message || 'lỗi không xác định'}). Hồ sơ có thể xuất hiện lại khi tải lại trang. Vui lòng kiểm tra kết nối/quyền truy cập Supabase.`,
+              'error',
+              'Đồng bộ Supabase thất bại'
+            )
           }
         }
-        // Nếu ứng viên đã được cấp Mã NV (đã có hồ sơ chính thức bên sheet Phân bổ dự án),
-        // xóa liên thông luôn hồ sơ đó khỏi bảng danh_sach_thu_kho để đồng bộ 2 sheet.
-        if (candidate.maNV) {
-          try {
-            await supabase.from('danh_sach_thu_kho').delete().eq('ma_nv', candidate.maNV)
-          } catch (dbErr) {
-            console.warn('Lỗi xóa hồ sơ nhân sự liên thông trên Supabase:', dbErr)
-          }
-          if (onReload) await onReload()
-        }
+        if (candidate.maNV && onReload) await onReload()
       },
       onCancel: () => setAlertConfig(null)
     })
@@ -796,7 +934,34 @@ export default function TuyenDungTab({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1, minHeight: 0, padding: '20px 24px', boxSizing: 'border-box', overflow: 'hidden' }}>
-      
+
+      {/* Banner cảnh báo khi dữ liệu KHÔNG đồng bộ được với Supabase — tránh tình trạng
+          mỗi thiết bị/trang hiển thị một danh sách khác nhau mà người dùng không hề hay biết */}
+      {supabaseCandidateStatus === 'error' && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+          background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10,
+          color: '#991b1b', fontSize: 13, fontWeight: 500
+        }}>
+          <AlertCircle size={16} style={{ flexShrink: 0 }} />
+          <span>
+            Không kết nối được với Supabase{syncError ? ` (${syncError})` : ''} — danh sách đang hiển thị dữ liệu lưu tạm trên máy này (localStorage) và có thể KHÁC với dữ liệu trên Cloud hoặc thiết bị khác. Kiểm tra kết nối mạng / cấu hình bảng &amp; quyền truy cập (RLS) trên Supabase, sau đó bấm nút bên dưới để thử lại.
+          </span>
+          <button
+            type="button"
+            onClick={() => loadCandidatesFromSupabase()}
+            style={{
+              marginLeft: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
+              padding: '6px 12px', borderRadius: 8, border: '1px solid #fca5a5',
+              background: '#fff', color: '#991b1b', fontWeight: 700, fontSize: 12, cursor: 'pointer'
+            }}
+          >
+            <RefreshCw size={13} />
+            <span>Thử lại</span>
+          </button>
+        </div>
+      )}
+
       {/* Hàng 1: Thanh công cụ Lọc & Tác vụ chính */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         
@@ -1469,12 +1634,25 @@ export default function TuyenDungTab({
               showAlert(`Đã lưu thành công ${newItems.length} hồ sơ CV vào danh sách tuyển dụng!`, 'success', 'Quét CV Thành Công')
             }
 
-            if (supabaseCandidateStatus === 'connected') {
+            // Chỉ insert những hồ sơ CHƯA từng được đồng bộ (tránh trùng lặp khi hàm này bị
+            // gọi 2 lần cho cùng một lô: 1 lần tự động lưu khi quét xong, 1 lần khi người
+            // dùng bấm nút "Lưu vào bảng tuyển dụng").
+            const notYetSynced = newItems.filter(c => !syncedCandidateIdsRef.current.has(c.id))
+            if (notYetSynced.length > 0 && supabaseCandidateStatus !== 'not_created') {
               try {
-                const rows = newItems.map(mapCandidateToDb)
-                await supabase.from('sgc_tuyen_dung_ung_vien').upsert(rows)
+                const { idRemap } = await insertCandidatesToDb(notYetSynced)
+                notYetSynced.forEach(c => syncedCandidateIdsRef.current.add(c.id))
+                idRemap.forEach(realId => syncedCandidateIdsRef.current.add(realId))
+                await remapTempIdsToRealIds(idRemap)
+                setSyncError(null)
               } catch (dbErr) {
                 console.warn('Lỗi lưu ứng viên lên Supabase:', dbErr)
+                setSyncError(dbErr.message || 'Không thể đồng bộ lên Supabase')
+                showAlert(
+                  `Đã lưu ${newItems.length} hồ sơ trên máy này, nhưng KHÔNG đồng bộ được lên Supabase (${dbErr.message || 'lỗi không xác định'}). Hồ sơ có thể biến mất khi tải lại trang hoặc khác với các thiết bị khác. Vui lòng kiểm tra kết nối/quyền truy cập Supabase.`,
+                  'error',
+                  'Đồng bộ Supabase thất bại'
+                )
               }
             }
           }}
@@ -1553,11 +1731,21 @@ export default function TuyenDungTab({
               return next
             })
             setSelectedCandidate(updated)
-            if (supabaseCandidateStatus === 'connected') {
+            if (supabaseCandidateStatus !== 'not_created') {
               try {
-                await supabase.from('sgc_tuyen_dung_ung_vien').upsert(mapCandidateToDb(updated))
+                const payload = mapCandidateToDb(updated)
+                delete payload.id
+                const { error: updErr } = await supabase.from('danh_sach_thu_kho').update(payload).eq('id', updated.id)
+                if (updErr) throw updErr
+                setSyncError(null)
               } catch (dbErr) {
                 console.warn('Lỗi cập nhật ứng viên lên Supabase:', dbErr)
+                setSyncError(dbErr.message || 'Không thể đồng bộ lên Supabase')
+                showAlert(
+                  `Đã cập nhật trên máy này, nhưng KHÔNG đồng bộ được lên Supabase (${dbErr.message || 'lỗi không xác định'}). Thay đổi có thể mất khi tải lại trang. Vui lòng kiểm tra kết nối/quyền truy cập Supabase.`,
+                  'error',
+                  'Đồng bộ Supabase thất bại'
+                )
               }
             }
           }}
@@ -1574,9 +1762,10 @@ export default function TuyenDungTab({
           onSave={async (saved) => {
             if (saved.isNew) {
               const maxStt = candidates.reduce((max, c) => Math.max(max, Number(c.stt) || 0), 0)
+              const tempId = 'cand-' + Date.now()
               const newCand = {
                 ...saved,
-                id: 'cand-' + Date.now(),
+                id: tempId,
                 stt: maxStt + 1,
                 isNew: false
               }
@@ -1589,11 +1778,21 @@ export default function TuyenDungTab({
                 return next
               })
               showAlert(`Đã thêm ứng viên ${saved.hoTen} vào danh sách tuyển dụng.`, 'success', 'Thêm thành công')
-              if (supabaseCandidateStatus === 'connected') {
+              if (supabaseCandidateStatus !== 'not_created') {
                 try {
-                  await supabase.from('sgc_tuyen_dung_ung_vien').insert([mapCandidateToDb(newCand)])
+                  const { idRemap } = await insertCandidatesToDb([newCand])
+                  syncedCandidateIdsRef.current.add(tempId)
+                  idRemap.forEach(realId => syncedCandidateIdsRef.current.add(realId))
+                  await remapTempIdsToRealIds(idRemap)
+                  setSyncError(null)
                 } catch (dbErr) {
                   console.warn('Lỗi thêm ứng viên vào Supabase:', dbErr)
+                  setSyncError(dbErr.message || 'Không thể đồng bộ lên Supabase')
+                  showAlert(
+                    `Đã thêm ứng viên ${saved.hoTen} trên máy này, nhưng KHÔNG đồng bộ được lên Supabase (${dbErr.message || 'lỗi không xác định'}). Hồ sơ có thể biến mất khi tải lại trang. Vui lòng kiểm tra kết nối/quyền truy cập Supabase.`,
+                    'error',
+                    'Đồng bộ Supabase thất bại'
+                  )
                 }
               }
             } else {
@@ -1607,11 +1806,21 @@ export default function TuyenDungTab({
               })
               setSelectedCandidate(saved)
               showAlert(`Đã cập nhật thông tin ứng viên ${saved.hoTen}.`, 'success', 'Cập nhật thành công')
-              if (supabaseCandidateStatus === 'connected') {
+              if (supabaseCandidateStatus !== 'not_created') {
                 try {
-                  await supabase.from('sgc_tuyen_dung_ung_vien').upsert(mapCandidateToDb(saved))
+                  const payload = mapCandidateToDb(saved)
+                  delete payload.id
+                  const { error: updErr } = await supabase.from('danh_sach_thu_kho').update(payload).eq('id', saved.id)
+                  if (updErr) throw updErr
+                  setSyncError(null)
                 } catch (dbErr) {
                   console.warn('Lỗi cập nhật ứng viên lên Supabase:', dbErr)
+                  setSyncError(dbErr.message || 'Không thể đồng bộ lên Supabase')
+                  showAlert(
+                    `Đã cập nhật ứng viên ${saved.hoTen} trên máy này, nhưng KHÔNG đồng bộ được lên Supabase (${dbErr.message || 'lỗi không xác định'}). Thay đổi có thể mất khi tải lại trang. Vui lòng kiểm tra kết nối/quyền truy cập Supabase.`,
+                    'error',
+                    'Đồng bộ Supabase thất bại'
+                  )
                 }
               }
             }
@@ -1638,7 +1847,7 @@ export default function TuyenDungTab({
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Database size={20} />
-                <span style={{ fontSize: 16, fontWeight: 700 }}>MÃ SQL TẠO BẢNG TUYỂN DỤNG TRÊN SUPABASE</span>
+                <span style={{ fontSize: 16, fontWeight: 700 }}>MÃ SQL BỔ SUNG CỘT CHO BẢNG danh_sach_thu_kho</span>
               </div>
               <button
                 onClick={() => setShowSqlModal(false)}
@@ -1650,7 +1859,7 @@ export default function TuyenDungTab({
 
             <div style={{ padding: '16px 20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
               <p style={{ margin: 0, fontSize: 13.5, color: '#334155', lineHeight: 1.5 }}>
-                Để ứng viên tuyển dụng được <strong>liên thông 100% trên Cloud Supabase</strong> (thay vì chỉ lưu bộ nhớ máy), bạn chỉ cần mở <strong>SQL Editor</strong> trên Supabase Dashboard và dán mã SQL bên dưới rồi ấn <strong>Run</strong>:
+                Hồ sơ tuyển dụng giờ được lưu CHUNG vào bảng <strong>danh_sach_thu_kho</strong> (bảng đang dùng cho Định biên / Phân bổ dự án). Để đảm bảo bảng có đủ 3 cột cần thiết cho hồ sơ CV, hãy mở <strong>SQL Editor</strong> trên Supabase Dashboard và dán mã SQL bên dưới rồi ấn <strong>Run</strong> (an toàn, không xóa dữ liệu, không tạo bảng mới):
               </p>
 
               <div style={{ position: 'relative' }}>
