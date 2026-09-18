@@ -293,6 +293,16 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
     return list
   }, [blocks])
 
+  // Tự động trỏ vào dự án thuộc NGĂN KHO CHƯA PHÂN BỔ khi khởi tạo
+  useEffect(() => {
+    if (selectedProjectId === 'UNASSIGNED' && allProjects.length > 0) {
+      const configured = allProjects.find(p => p.blockId === 'unassigned' || (p.name && p.name.toLowerCase() === 'chưa phân bổ'))
+      if (configured) {
+        setSelectedProjectId(configured.id)
+      }
+    }
+  }, [allProjects, selectedProjectId])
+
   // Nhận yêu cầu chọn sẵn một dự án cụ thể từ nơi khác điều hướng tới
   // (VD: bấm vào dự án ở Dashboard tổng quan để xem ngay danh sách thủ kho của dự án đó)
   useEffect(() => {
@@ -333,13 +343,14 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
       }
     }
     const projName = (projectName || '').trim()
-    if (!projName || projName === 'none' || projName === '—') {
+    if (!projName || projName === 'none' || projName === '—' || projName.toLowerCase() === 'chưa phân bổ') {
+      const unassignedProj = allProjects.find(p => p.blockId === 'unassigned' || p.name.toLowerCase() === 'chưa phân bổ')
       return {
-        color: '#475569',
-        bgColor: '#f8fafc',
-        borderColor: '#cbd5e1',
-        badgeBg: '#e2e8f0',
-        badge: 'HOLDING'
+        color: unassignedProj?.color || '#475569',
+        bgColor: unassignedProj?.bgColor || '#f8fafc',
+        borderColor: unassignedProj?.borderColor || '#cbd5e1',
+        badgeBg: unassignedProj?.badgeBg || '#e2e8f0',
+        badge: unassignedProj?.badge || 'NO'
       }
     }
     const found = allProjects.find(p => p.name.toLowerCase() === projName.toLowerCase())
@@ -372,11 +383,12 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
   // Core Transfer Logic
   const transferPersonnel = (storekeeper, destProjectName) => {
     const isDestRetired = destProjectName === 'Đã nghỉ việc'
-    const finalProjectName = isDestRetired ? '' : (destProjectName === 'Chưa phân bổ' ? '' : destProjectName)
+    const isDestUnassigned = destProjectName === 'Chưa phân bổ'
+    const finalProjectName = isDestRetired ? '' : destProjectName
 
     // Determine block automatically to keep synchronizations
     let finalBlockName = 'KHỐI THI CÔNG CHƯA PHÂN BỔ'
-    if (finalProjectName) {
+    if (finalProjectName && !isDestUnassigned) {
       const matchedProj = allProjects.find(p => p.name.toLowerCase() === finalProjectName.toLowerCase())
       if (matchedProj) {
         finalBlockName = matchedProj.blockName
@@ -541,8 +553,8 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
     const unassignedColumn = {
       id: 'UNASSIGNED',
       name: 'Chưa phân bổ',
-      badge: 'HOLDING',
-      blockName: 'Nhân sự tự do',
+      badge: 'NO',
+      blockName: 'NGĂN KHO CHƯA PHÂN BỔ',
       color: '#475569',
       bgColor: '#f8fafc',
       borderColor: '#cbd5e1',
@@ -571,6 +583,10 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
       }))
     ]
 
+    // Tìm dự án "Chưa phân bổ" chính thức trong khối "NGĂN KHO CHƯA PHÂN BỔ"
+    const configuredUnassigned = projectsList.find(p => p.id !== 'UNASSIGNED' && p.id !== 'RETIRED' && (p.blockId === 'unassigned' || (p.name && p.name.toLowerCase() === 'chưa phân bổ')))
+    const unassignedTarget = configuredUnassigned || unassignedColumn
+
     // Calculate real-time counts using filteredStorekeepers
     filteredStorekeepers.forEach(tk => {
       const isRetired = tk.trangThai === 'Đã nghỉ việc' || tk.trangThai === 'Nghỉ việc'
@@ -580,18 +596,18 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
       }
 
       const projName = (tk.duAn || '').trim()
-      const isKnown = allProjects.some(p => p.name.toLowerCase() === projName.toLowerCase())
+      const isKnown = allProjects.some(p => p.name.toLowerCase() === projName.toLowerCase() && p.name.toLowerCase() !== 'chưa phân bổ')
 
-      if (!projName || projName === 'none' || projName === '—' || !isKnown) {
-        unassignedColumn.count++
+      // Mọi nhân viên chưa phân bổ (hoặc có dự án là "Chưa phân bổ", "none", "—", rỗng)
+      // đều tự động thuộc về NGĂN KHO CHƯA PHÂN BỔ
+      if (!projName || projName === 'none' || projName === '—' || projName.toLowerCase() === 'chưa phân bổ' || !isKnown) {
+        unassignedTarget.count++
       } else {
-        // Chỉ tìm khớp trong các dự án được cấu hình thực tế (bỏ qua 2 cột đặc biệt "Chưa phân bổ"/"Đã nghỉ việc"),
-        // để tránh đếm nhầm vào cột "Chưa phân bổ" đặc biệt khi có 1 dự án thật cũng được đặt tên trùng "Chưa phân bổ"
         const found = projectsList.find(p => p.id !== 'UNASSIGNED' && p.id !== 'RETIRED' && p.name && p.name.toLowerCase() === projName.toLowerCase())
         if (found) {
           found.count++
         } else {
-          unassignedColumn.count++
+          unassignedTarget.count++
         }
       }
     })
@@ -637,11 +653,13 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
         }
 
         const projName = (tk.duAn || '').trim()
-        const isKnown = allProjects.some(p => p.name.toLowerCase() === projName.toLowerCase())
+        const isKnown = allProjects.some(p => p.name.toLowerCase() === projName.toLowerCase() && p.name.toLowerCase() !== 'chưa phân bổ')
 
-        // Match project assignment
-        if (activeProj.id === 'UNASSIGNED') {
-          return (!projName || projName === 'none' || projName === '—' || !isKnown)
+        // Match project assignment:
+        // Nếu đang xem mục Chưa phân bổ (dù là UNASSIGNED hay dự án trong khối NGĂN KHO CHƯA PHÂN BỔ)
+        const isUnassignedProj = activeProj.id === 'UNASSIGNED' || activeProj.blockId === 'unassigned' || (activeProj.name && activeProj.name.toLowerCase() === 'chưa phân bổ')
+        if (isUnassignedProj) {
+          return (!projName || projName === 'none' || projName === '—' || projName.toLowerCase() === 'chưa phân bổ' || !isKnown)
         } else {
           return (projName.toLowerCase() === activeProj.name.toLowerCase())
         }
@@ -676,7 +694,14 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
   // Group projects by Block for clear hierarchy in both Split and Kanban views
   const groupedProjects = useMemo(() => {
     // 1. Special group (Chưa phân bổ & Đã nghỉ việc)
-    const specialProjects = projectStats.filter(p => p.id === 'UNASSIGNED' || p.id === 'RETIRED')
+    // Nếu trong danh sách khối đã có khối NGĂN KHO CHƯA PHÂN BỔ (id === 'unassigned'),
+    // chỉ hiển thị trạng thái "Đã nghỉ việc" trong nhóm TRẠNG THÁI ĐẶC BIỆT để tránh trùng lặp 2 mục Chưa phân bổ
+    const hasConfiguredUnassigned = blocks.some(b => b.id === 'unassigned' || (b.name && b.name.toLowerCase().includes('chưa phân bổ')))
+    const specialProjects = projectStats.filter(p => {
+      if (p.id === 'RETIRED') return true
+      if (p.id === 'UNASSIGNED') return !hasConfiguredUnassigned
+      return false
+    })
     const specialGroup = {
       id: 'SPECIAL',
       name: 'TRẠNG THÁI ĐẶC BIỆT',

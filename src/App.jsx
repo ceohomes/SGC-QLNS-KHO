@@ -133,14 +133,10 @@ export default function App() {
       const birthYear = isoNgaySinh ? parseInt(isoNgaySinh.split('-')[0], 10) : null
       const computedTuoi = (birthYear && !isNaN(birthYear)) ? (new Date().getFullYear() - birthYear) : (candidate.tuoi || (candidate.hoTen?.includes('Minh Châu') ? 25 : null))
 
-      let determinedBlock = officialKhoi || candidate.banChuoiKhoi || candidate.khoiThiCong || ''
-      if (!determinedBlock && officialDuAn && officialDuAn !== 'Chưa phân bổ') {
-        const matched = DU_AN_LIST.find(p => p.ten === officialDuAn)
-        if (matched) determinedBlock = matched.banChuoiKhoi || 'Khối Thi công'
-      }
-      if (!determinedBlock) {
-        determinedBlock = 'Khối Thi công'
-      }
+      // Khi cấp mã tuyển dụng, tự động đưa nhân viên mới vào danh sách NGĂN KHO CHƯA PHÂN BỔ,
+      // tuyệt đối không đưa vào dự án nào bừa bãi.
+      const determinedBlock = 'KHỐI THI CÔNG CHƯA PHÂN BỔ'
+      const determinedDuAn = 'Chưa phân bổ'
 
       const payload = buildThuKhoDbPayload({
         stt: maxStt + 1,
@@ -160,7 +156,7 @@ export default function App() {
         trinhDo: candidate.trinhDo || 'Đại học',
         chuyenNganh: candidate.chuyenNganh || '',
         chucVu: officialChucVu || candidate.chucVu || 'Thủ kho hiện trường',
-        duAn: officialDuAn || candidate.duAn || 'Chưa phân bổ',
+        duAn: determinedDuAn,
         trangThai: 'Đang làm việc',
         ghiChu: candidate.ghiChu || (candidate.fileName ? `Tuyển dụng từ CV (${candidate.fileName})` : ''),
         kinhNghiem: candidate.kinhNghiem || '',

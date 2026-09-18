@@ -817,8 +817,8 @@ export default function TuyenDungTab({
   const handleOpenRecruitModal = (candidate) => {
     setRecruitingCandidate(candidate)
     setCustomMaNVInput(inlineMaNVInputs[candidate.id] || '')
-    setSelectedOfficialKhoi(candidate.banChuoiKhoi || candidate.khoiThiCong || 'Khối Thi công')
-    setSelectedOfficialDuAn(candidate.duAn || 'Chưa phân bổ')
+    setSelectedOfficialKhoi('KHỐI THI CÔNG CHƯA PHÂN BỔ')
+    setSelectedOfficialDuAn('Chưa phân bổ')
     const validChucVu = uniquePositions.includes(candidate.chucVu) ? candidate.chucVu : (uniquePositions[0] || 'Thủ kho')
     setSelectedOfficialChucVu(validChucVu)
   }
@@ -843,16 +843,20 @@ export default function TuyenDungTab({
     }
 
     try {
+      // Khi cấp mã tuyển dụng, tự động đưa nhân viên mới vào danh sách NGĂN KHO CHƯA PHÂN BỔ
+      const UNASSIGNED_PROJECT = 'Chưa phân bổ'
+      const UNASSIGNED_BLOCK = 'KHỐI THI CÔNG CHƯA PHÂN BỔ'
+
       // 1. Update candidate state in recruitment list
       const updatedCandidates = candidates.map(c => {
         if (c.id === recruitingCandidate.id) {
           return {
             ...c,
             maNV: maNV,
-            banChuoiKhoi: selectedOfficialKhoi || c.banChuoiKhoi || 'Khối Thi công',
-            khoiThiCong: selectedOfficialKhoi || c.khoiThiCong || 'Khối Thi công',
+            banChuoiKhoi: UNASSIGNED_BLOCK,
+            khoiThiCong: UNASSIGNED_BLOCK,
             trangThai: 'Đã tuyển dụng',
-            duAn: selectedOfficialDuAn || c.duAn,
+            duAn: UNASSIGNED_PROJECT,
             chucVu: selectedOfficialChucVu || c.chucVu,
             ngayTuyenDung: new Date().toISOString().split('T')[0]
           }
@@ -864,9 +868,9 @@ export default function TuyenDungTab({
       const recruitedCandidate = {
         ...recruitingCandidate,
         maNV: maNV,
-        banChuoiKhoi: selectedOfficialKhoi || recruitingCandidate.banChuoiKhoi || 'Khối Thi công',
-        khoiThiCong: selectedOfficialKhoi || recruitingCandidate.khoiThiCong || 'Khối Thi công',
-        duAn: selectedOfficialDuAn,
+        banChuoiKhoi: UNASSIGNED_BLOCK,
+        khoiThiCong: UNASSIGNED_BLOCK,
+        duAn: UNASSIGNED_PROJECT,
         chucVu: selectedOfficialChucVu
       }
 
@@ -879,7 +883,7 @@ export default function TuyenDungTab({
       // được giao hẳn cho App.jsx (handleRecruitSuccess) — nơi DUY NHẤT thực hiện update
       // theo id thật của dòng này — để tránh 2 chỗ cùng ghi đè lên nhau.
       if (onRecruitSuccess) {
-        await onRecruitSuccess(recruitedCandidate, maNV, selectedOfficialDuAn, selectedOfficialChucVu, selectedOfficialKhoi)
+        await onRecruitSuccess(recruitedCandidate, maNV, UNASSIGNED_PROJECT, selectedOfficialChucVu, UNASSIGNED_BLOCK)
       }
     } catch (err) {
       console.error('Lỗi khi thực hiện tuyển dụng:', err)
