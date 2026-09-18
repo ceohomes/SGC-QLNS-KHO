@@ -94,7 +94,7 @@ export function buildThuKhoDbPayload(item) {
     stt: (item.stt != null && item.stt !== '') ? Number(item.stt) : null,
     khoi_thi_cong: banChuoiKhoi,
     du_an_cong_trinh: duAn,
-    ma_nv: (item.maNV || item.ma_nv || '').trim() || null,
+    ma_nv: (item.maNV || item.ma_nv || item.maUngVien || '').trim() || (item.trangThai === 'Tiếp nhận CV' || item.trang_thai === 'Tiếp nhận CV' ? ('UV-' + (item.id ? String(item.id).replace(/^cand-/, '') : Date.now())) : null),
     ho_ten: item.hoTen || item.ho_ten || '',
     chuc_danh: chucVu,
     dien_thoai: phone,

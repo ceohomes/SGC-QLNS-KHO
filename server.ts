@@ -393,8 +393,8 @@ function fallbackHeuristicExtract(text: string, fileName: string) {
 
 // Helper to call Gemini with automatic cascading fallback models to handle 503 spikes
 async function callGeminiWithFallback(ai: GoogleGenAI, contents: any, config: any) {
-  // Try fast robust models first
-  const models = ["gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
+  // Try fast robust models first - gemini-3.1-flash-lite & gemini-3.8-flash have immediate availability and no 503 demand spikes
+  const models = ["gemini-3.1-flash-lite", "gemini-3.8-flash", "gemini-3.6-flash"];
   let lastError: any = null;
 
   for (const model of models) {
@@ -615,17 +615,51 @@ const CV_RESPONSE_SCHEMA = {
     }
 
     // Merge baseline fallback with AI parsed result
+    const hoTenExtracted = parsedJson.hoTen || parsedJson.ho_ten || baselineFallback.hoTen;
+    const phoneExtracted = parsedJson.soDienThoai || parsedJson.so_dien_thoai || parsedJson.phone || baselineFallback.soDienThoai;
+    const emailExtracted = parsedJson.email || baselineFallback.email;
+    const birthExtracted = parsedJson.ngaySinh || parsedJson.ngay_sinh || baselineFallback.ngaySinh;
+    const addrExtracted = parsedJson.diaChi || parsedJson.dia_chi || parsedJson.que_quan || baselineFallback.diaChi;
+    const trinhDoExtracted = parsedJson.trinhDo || parsedJson.trinh_do || baselineFallback.trinhDo;
+    const chuyenNganhExtracted = parsedJson.chuyenNganh || parsedJson.chuyen_nganh || baselineFallback.chuyenNganh;
+    const chucVuExtracted = parsedJson.chucVu || parsedJson.vi_tri_ung_tuyen || baselineFallback.chucVu;
+    const expNumExtracted = parsedJson.soNamKinhNghiem ? Number(parsedJson.soNamKinhNghiem) : (parsedJson.so_nam_kinh_nghiem ? (Number(String(parsedJson.so_nam_kinh_nghiem).replace(/\D+/g, '')) || baselineFallback.soNamKinhNghiem) : baselineFallback.soNamKinhNghiem);
+    
+    let kinhNghiemStr = baselineFallback.kinhNghiem;
+    if (typeof parsedJson.kinhNghiem === 'string' && parsedJson.kinhNghiem.trim()) {
+      kinhNghiemStr = parsedJson.kinhNghiem;
+    } else if (Array.isArray(parsedJson.kinh_nghiem)) {
+      kinhNghiemStr = parsedJson.kinh_nghiem.map((k: any) => `${k.vi_tri || ''} tại ${k.cong_ty || ''} (${k.thoi_gian || ''}): ${k.mo_ta || ''}`).join('; ');
+    } else if (typeof parsedJson.kinh_nghiem === 'string' && parsedJson.kinh_nghiem.trim()) {
+      kinhNghiemStr = parsedJson.kinh_nghiem;
+    }
+
+    let kyNangStr = baselineFallback.kyNang;
+    if (Array.isArray(parsedJson.ky_nang)) {
+      kyNangStr = parsedJson.ky_nang.join(', ');
+    } else if (typeof parsedJson.kyNang === 'string') {
+      kyNangStr = parsedJson.kyNang;
+    } else if (typeof parsedJson.ky_nang === 'string') {
+      kyNangStr = parsedJson.ky_nang;
+    }
+
+    const aiDanhGiaStr = parsedJson.aiDanhGia || parsedJson.danh_gia_ai || parsedJson.danhGia || baselineFallback.aiDanhGia;
+
     const merged = {
       ...baselineFallback,
       ...parsedJson,
-      hoTen: parsedJson.hoTen || baselineFallback.hoTen,
-      soDienThoai: parsedJson.soDienThoai || baselineFallback.soDienThoai,
-      email: parsedJson.email || baselineFallback.email,
-      ngaySinh: parsedJson.ngaySinh || baselineFallback.ngaySinh,
-      diaChi: parsedJson.diaChi || baselineFallback.diaChi,
-      trinhDo: parsedJson.trinhDo || baselineFallback.trinhDo,
-      chuyenNganh: parsedJson.chuyenNganh || baselineFallback.chuyenNganh,
-      soNamKinhNghiem: parsedJson.soNamKinhNghiem ? Number(parsedJson.soNamKinhNghiem) : baselineFallback.soNamKinhNghiem,
+      hoTen: hoTenExtracted,
+      soDienThoai: phoneExtracted,
+      email: emailExtracted,
+      ngaySinh: birthExtracted,
+      diaChi: addrExtracted,
+      chucVu: chucVuExtracted,
+      trinhDo: trinhDoExtracted,
+      chuyenNganh: chuyenNganhExtracted,
+      soNamKinhNghiem: expNumExtracted,
+      kinhNghiem: kinhNghiemStr,
+      kyNang: kyNangStr,
+      aiDanhGia: aiDanhGiaStr,
       diemPhuHop: normalizedScore,
       isParsedWithAI: true
     };

@@ -216,25 +216,40 @@ export default function CaiDatApiKeyModal({ isOpen, onClose }) {
     }
 
     try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${keyToTest}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: 'ping' }] }]
-        })
-      })
+      const modelsToTest = ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-3.6-flash']
+      let successModel = null
+      let lastErrMsg = ''
 
-      if (res.ok) {
+      for (const m of modelsToTest) {
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${keyToTest}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: 'ping' }] }]
+            })
+          })
+          if (res.ok) {
+            successModel = m
+            break
+          } else {
+            const errJson = await res.json().catch(() => ({}))
+            lastErrMsg = errJson.error?.message || `Mã lỗi HTTP ${res.status}`
+          }
+        } catch (e) {
+          lastErrMsg = e.message
+        }
+      }
+
+      if (successModel) {
         setGeminiTestResult({
           success: true,
-          message: 'Kết nối Google Gemini AI (model gemini-3.6-flash) thành công! Khóa này hoàn toàn hợp lệ và hoạt động trên cả Cloudflare Pages.'
+          message: `Kết nối Google Gemini AI (model ${successModel}) thành công! Khóa này hoàn toàn hợp lệ và hoạt động tốt trên cả Cloudflare Pages & Google Studio.`
         })
       } else {
-        const errJson = await res.json().catch(() => ({}))
-        const msg = errJson.error?.message || `Mã lỗi HTTP ${res.status}`
         setGeminiTestResult({
           success: false,
-          message: `Google Gemini API từ chối: ${msg}. Vui lòng tạo key mới tại aistudio.google.com/app/apikey.`
+          message: `Google Gemini API từ chối: ${lastErrMsg}. Vui lòng kiểm tra lại key tại aistudio.google.com/app/apikey.`
         })
       }
     } catch (err) {

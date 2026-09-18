@@ -97,7 +97,8 @@ export function mapDbToCandidate(r) {
     aiDanhGia: r.danh_gia || '',
     diemPhuHop: Number(r.diem_phu_hop || 0),
     trangThai: r.trang_thai || 'Tiếp nhận CV',
-    maNV: r.ma_nv || '',
+    maNV: (r.ma_nv && String(r.ma_nv).startsWith('UV-')) ? '' : (r.ma_nv || ''),
+    maUngVien: r.ma_nv || '',
     fileName: fn,
     fileUrl: r.file_url || derivedGhDownload,
     githubUrl: r.github_url || derivedGhView,
@@ -155,12 +156,15 @@ export function mapCandidateToDb(c) {
     danh_gia: c.aiDanhGia || '',
     diem_phu_hop: Number(c.diemPhuHop || 0),
     // Bảng danh_sach_thu_kho dùng chung cho cả ứng viên (chưa có Mã NV) lẫn nhân sự chính
-    // thức, nên trạng thái mặc định của ứng viên mới vẫn là 'Tiếp nhận CV' (không phải
-    // 'Đang làm việc') để không bị các sheet Định biên/Phân bổ dự án hiểu nhầm là đã tuyển.
+    // thức. Cột ma_nv trên Supabase có ràng buộc NOT NULL & UNIQUE.
+    // Đối với ứng viên chưa tuyển, gán mã định danh duy nhất bắt đầu bằng 'UV-...'
+    // để vừa thỏa mãn ràng buộc của DB, vừa phân biệt rõ ràng với Mã NV chính thức.
     trang_thai: c.trangThai || 'Tiếp nhận CV',
-    // Nếu ứng viên chưa có mã NV, bắt buộc gửi null (không gửi chuỗi rỗng '')
-    // để tránh vi phạm ràng buộc UNIQUE "danh_sach_thu_kho_ma_nv_key" trên Postgres.
-    ma_nv: (c.maNV && String(c.maNV).trim()) ? String(c.maNV).trim() : null,
+    ma_nv: (c.maNV && String(c.maNV).trim()) 
+      ? String(c.maNV).trim() 
+      : (c.maUngVien && String(c.maUngVien).startsWith('UV-')
+          ? String(c.maUngVien).trim()
+          : ('UV-' + (c.id ? String(c.id).replace(/^cand-/, '') : Date.now()))),
     file_name: c.fileName || '',
     file_url: c.fileUrl || '',
     github_url: c.githubUrl || '',
@@ -464,9 +468,12 @@ export default function TuyenDungTab({
   // tự sinh — KHÔNG được gửi id tạm (client-side) lên, nếu không insert sẽ báo lỗi
   // "invalid input syntax for type uuid". Trả về map {id tạm -> id thật} để gọi remapTempIdsToRealIds.
   const insertCandidatesToDb = async (items) => {
-    const rows = items.map(c => {
+    const rows = items.map((c, idx) => {
       const payload = mapCandidateToDb(c)
       delete payload.id
+      if (!payload.ma_nv || payload.ma_nv === '') {
+        payload.ma_nv = `UV-${Date.now()}-${idx}`
+      }
       return payload
     })
     const { data: inserted, error } = await supabase
@@ -495,7 +502,7 @@ export default function TuyenDungTab({
       const { data, error } = await supabase
         .from('danh_sach_thu_kho')
         .select('*')
-        .or('ma_nv.is.null,ma_nv.eq.')
+        .or('ma_nv.is.null,ma_nv.eq.,ma_nv.ilike.UV-%')
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -2977,6 +2984,22 @@ function CandidateDetailModal({
           reader.onloadend = () => resolve(reader.result)
           reader.readAsDataURL(currentPdfBlob)
         })
+      }
+      if (!base64Data && (candidate.fileUrl || candidate.fileName)) {
+        try {
+          const fetchUrl = candidate.fileUrl || `https://raw.githubusercontent.com/ceohomes/CV-TQT/main/cvs/${candidate.fileName}`
+          const fetchRes = await fetch(fetchUrl)
+          if (fetchRes.ok) {
+            const fetchedBlob = await fetchRes.blob()
+            base64Data = await new Promise((resolve) => {
+              const reader = new FileReader()
+              reader.onloadend = () => resolve(reader.result)
+              reader.readAsDataURL(fetchedBlob)
+            })
+          }
+        } catch (fetchErr) {
+          console.warn('Không thể tải PDF từ URL GitHub:', fetchErr)
+        }
       }
 
       const resJson = await parseCvUniversal({

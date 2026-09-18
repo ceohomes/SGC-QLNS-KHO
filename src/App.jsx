@@ -27,20 +27,20 @@ export default function App() {
   const [initialDuAnFilter, setInitialDuAnFilter] = useState('')
   const [initialDuAnSearch, setInitialDuAnSearch] = useState('')
 
-  // Chỉ những dòng ĐÃ CÓ Mã NV mới được coi là nhân sự chính thức — dùng cho các sheet
+  // Chỉ những dòng ĐÃ CÓ Mã NV và không phải mã tạm ứng viên (UV-) mới được coi là nhân sự chính thức — dùng cho các sheet
   // Định biên / Phân bổ dự án / Thông tin dự án (tính số lượng thực tế, quota...). Ứng viên
-  // chưa có Mã NV (đang ở sheet Tuyển dụng nhân sự) KHÔNG được tính vào đây, tránh làm sai
+  // chưa có Mã NV hoặc mang mã tạm UV- (đang ở sheet Tuyển dụng nhân sự) KHÔNG được tính vào đây, tránh làm sai
   // lệch số liệu nhân sự.
-  const officialData = useMemo(() => data.filter(d => d.maNV), [data])
+  const officialData = useMemo(() => data.filter(d => d.maNV && !String(d.maNV).startsWith('UV-')), [data])
 
   // Wrapper cho onUpdateData của DuAnTab: DuAnTab chỉ thao tác trên officialData (đã lọc),
   // nhưng khi ghi ngược lại state của App, phải GHÉP LẠI với các dòng ứng viên (chưa có Mã
-  // NV) để không bị mất khỏi state chung — DuAnTab gọi onUpdateData(newArray) hoặc
+  // NV hoặc mã tạm UV-) để không bị mất khỏi state chung — DuAnTab gọi onUpdateData(newArray) hoặc
   // onUpdateData(prev => ...), cả 2 dạng đều được hỗ trợ.
   const handleUpdateOfficialData = (updater) => {
     setData(prevFull => {
-      const prevOfficial = prevFull.filter(d => d.maNV)
-      const candidateRows = prevFull.filter(d => !d.maNV)
+      const prevOfficial = prevFull.filter(d => d.maNV && !String(d.maNV).startsWith('UV-'))
+      const candidateRows = prevFull.filter(d => !d.maNV || String(d.maNV).startsWith('UV-'))
       const nextOfficial = typeof updater === 'function' ? updater(prevOfficial) : updater
       return [...(nextOfficial || []), ...candidateRows]
     })
