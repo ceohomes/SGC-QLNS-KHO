@@ -511,16 +511,34 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
     return getCbHauKiemColor(hoTen)
   }
 
-  // Xuất Excel: danh sách 3 cột CV hậu kiểm / Dự án / Ngăn kho, gộp toàn bộ các khối
+  // Trộn 1 màu hex với trắng theo tỉ lệ để tạo màu nền nhạt (dùng làm màu nền dòng Excel,
+  // giữ nội dung dễ đọc thay vì tô đặc màu gốc).
+  const hexToLightArgb = (hex, mixRatio = 0.82) => {
+    const h = (hex || '#94a3b8').replace('#', '')
+    const r = parseInt(h.substring(0, 2), 16)
+    const g = parseInt(h.substring(2, 4), 16)
+    const b = parseInt(h.substring(4, 6), 16)
+    const mix = (c) => Math.round(c + (255 - c) * mixRatio)
+    const toHex = (c) => c.toString(16).padStart(2, '0').toUpperCase()
+    return `${toHex(mix(r))}${toHex(mix(g))}${toHex(mix(b))}`
+  }
+  const hexToArgb = (hex) => (hex || '#1B1919').replace('#', '').toUpperCase()
+
+  // Xuất Excel: danh sách CV hậu kiểm / Dự án / Ngăn kho / Khối lượng nhân sự thủ kho,
+  // gộp toàn bộ các khối, tô màu nền mỗi dòng theo đúng màu của CV hậu kiểm như trên webapp.
   const handleExportCbHauKiemExcel = async () => {
     try {
       const rows = []
       blocks.forEach(b => {
         (b.projects || []).forEach(p => {
+          const soLuongThuKho = (data || []).filter(d =>
+            (d.duAn || '').trim().toLowerCase() === (p.name || '').trim().toLowerCase()
+          ).length
           rows.push({
             canBoHauKiem: b.canBoHauKiem || '',
             duAn: b.name || '',
-            nganKho: p.name || ''
+            nganKho: p.name || '',
+            soLuongThuKho
           })
         })
       })
@@ -531,7 +549,8 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
       worksheet.columns = [
         { header: 'CV hậu kiểm', key: 'canBoHauKiem', width: 30 },
         { header: 'Dự án', key: 'duAn', width: 40 },
-        { header: 'Ngăn kho', key: 'nganKho', width: 46 }
+        { header: 'Ngăn kho', key: 'nganKho', width: 46 },
+        { header: 'Khối lượng nhân sự thủ kho', key: 'soLuongThuKho', width: 26 }
       ]
 
       rows.forEach(r => worksheet.addRow(r))
@@ -552,17 +571,26 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
 
       worksheet.eachRow({ includeHeader: false }, (row, rowNumber) => {
         row.height = 22
-        const isEven = rowNumber % 2 === 0
-        const bgColor = isEven ? 'F8FAFC' : 'FFFFFF'
+        const dataRow = rows[rowNumber - 2]
+        const hasCb = dataRow && dataRow.canBoHauKiem
+        const cbColor = hasCb ? resolveCbColor(dataRow.canBoHauKiem) : null
+        const bgColor = hasCb ? hexToLightArgb(cbColor) : (rowNumber % 2 === 0 ? 'F8FAFC' : 'FFFFFF')
         row.eachCell((cell, colNumber) => {
           const headerKey = worksheet.columns[colNumber - 1].key
           cell.font = {
             name: 'Arial', size: 10,
             bold: headerKey === 'canBoHauKiem',
-            color: { argb: headerKey === 'canBoHauKiem' && !cell.value ? '94A3B8' : '1B1919' }
+            color: {
+              argb: headerKey === 'canBoHauKiem'
+                ? (hasCb ? hexToArgb(cbColor) : '94A3B8')
+                : (headerKey === 'soLuongThuKho' ? '1B1919' : '1B1919')
+            }
           }
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } }
-          cell.alignment = { vertical: 'middle', horizontal: 'left' }
+          cell.alignment = {
+            vertical: 'middle',
+            horizontal: headerKey === 'soLuongThuKho' ? 'center' : 'left'
+          }
           cell.border = {
             top: { style: 'thin', color: { argb: 'E2E8F0' } },
             left: { style: 'thin', color: { argb: 'CBD5E1' } },
