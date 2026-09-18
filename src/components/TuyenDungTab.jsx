@@ -116,6 +116,12 @@ export function mapCandidateToDb(c) {
       isoNgaySinh = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
     }
   }
+  // Phòng vệ: nếu giá trị không phải ngày hợp lệ dạng YYYY-MM-DD (ví dụ lỡ lưu
+  // nhầm chuỗi hiển thị "—" khi AI không quét được ngày sinh), gửi null thay vì
+  // chuỗi rác để tránh Postgres báo lỗi "invalid input syntax for type date".
+  if (isoNgaySinh && !/^\d{4}-\d{2}-\d{2}$/.test(isoNgaySinh)) {
+    isoNgaySinh = null
+  }
 
   const chucVuVal = c.chucVu || ''
   const duAnVal = c.duAn || ''
@@ -2873,8 +2879,13 @@ function CandidateDetailModal({
           trangThai: candidate.trangThai || 'Tiếp nhận CV',
           fileName: candidate.fileName || `${parsed.hoTen || 'CV'}.pdf`,
           fileDataUrl: base64Data || candidate.fileDataUrl,
-          ngaySinh: formatDate(parsed.ngaySinh || candidate.ngaySinh),
-          ngayUngTuyen: formatDate(candidate.ngayUngTuyen || new Date().toISOString().slice(0, 10)),
+          // Lưu ý: KHÔNG dùng formatDate() ở đây — formatDate() là hàm định dạng
+          // NGÀY để HIỂN THỊ (trả về "—" khi không có dữ liệu), nếu lưu thẳng "—"
+          // vào state thì khi đồng bộ lên Supabase cột ngay_sinh (kiểu date) sẽ báo lỗi
+          // "invalid input syntax for type date". Ở đây chỉ lưu giá trị thô, việc hiển thị
+          // đã có formatDate() gọi riêng ở nơi render (ví dụ dòng "Ngày sinh:" bên dưới).
+          ngaySinh: (parsed.ngaySinh || candidate.ngaySinh || '').trim() === '—' ? '' : (parsed.ngaySinh || candidate.ngaySinh || ''),
+          ngayUngTuyen: candidate.ngayUngTuyen || new Date().toISOString().slice(0, 10),
           isParsedWithAI: true
         }
         if (onUpdateCandidate) {
