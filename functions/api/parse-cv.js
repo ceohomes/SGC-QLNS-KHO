@@ -163,7 +163,10 @@ export async function onRequestPost({ request, env }) {
         success: true,
         data: baselineFallback,
         source: "heuristic_fallback",
-        note: "AI tạm thời không phản hồi, đã dùng trích xuất thông minh từ nội dung hồ sơ."
+        note: "AI tạm thời không phản hồi, đã dùng trích xuất thông minh từ nội dung hồ sơ.",
+        // Lộ chi tiết lỗi gốc từ Gemini để dễ chẩn đoán (sai key, hết quota, lỗi model...)
+        // thay vì chỉ có 1 câu thông báo chung chung không rõ nguyên nhân.
+        debugError: String(err && err.message ? err.message : err)
       });
     }
 
