@@ -272,6 +272,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
   const [isCbHauKiemListModalOpen, setIsCbHauKiemListModalOpen] = useState(false)
   const [editingCbHauKiem, setEditingCbHauKiem] = useState(null) // record đang sửa hoặc null nếu đang thêm mới
   const [cbHauKiemHoTen, setCbHauKiemHoTen] = useState('')
+  const [cbHauKiemMau, setCbHauKiemMau] = useState('')
 
   const showAlert = (message, severity = 'info', title = 'Thông báo') => {
     setAlertConfig({ type: 'alert', message, severity, title })
@@ -400,11 +401,36 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
   const openAddCbHauKiem = () => {
     setEditingCbHauKiem(null)
     setCbHauKiemHoTen('')
+    setCbHauKiemMau('')
   }
 
   const openEditCbHauKiem = (rec) => {
     setEditingCbHauKiem(rec)
     setCbHauKiemHoTen(rec.ho_ten || '')
+    setCbHauKiemMau(rec.mau || '')
+  }
+
+  // Ghi vào Supabase với cơ chế tự động bỏ qua cột "mau" nếu bảng sgc_can_bo_hau_kiem
+  // chưa được ALTER thêm cột này, giống cách dbBlocks đang xử lý cột thiếu ở nơi khác trong file.
+  const writeCbHauKiemToSupabase = async (op, payload) => {
+    let current = { ...payload }
+    let attempts = 0
+    while (attempts < 5) {
+      attempts++
+      const query = op === 'insert'
+        ? supabase.from('sgc_can_bo_hau_kiem').insert([current])
+        : supabase.from('sgc_can_bo_hau_kiem').update(current).eq('id', editingCbHauKiem.id)
+      const { error } = await query
+      if (!error) return
+      const match = (error.message || '').match(/Could not find the '(.*?)' column/)
+      if (match && match[1] && current[match[1]] !== undefined) {
+        const copy = { ...current }
+        delete copy[match[1]]
+        current = copy
+        continue
+      }
+      throw error
+    }
   }
 
   const handleCbHauKiemSubmit = async (e) => {
@@ -415,11 +441,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
       setCbHauKiemLoading(true)
       const oldHoTen = editingCbHauKiem ? editingCbHauKiem.ho_ten : null
       if (editingCbHauKiem) {
-        const { error } = await supabase
-          .from('sgc_can_bo_hau_kiem')
-          .update({ ho_ten: hoTen })
-          .eq('id', editingCbHauKiem.id)
-        if (error) throw error
+        await writeCbHauKiemToSupabase('update', { ho_ten: hoTen, mau: cbHauKiemMau || null })
 
         // Nếu đổi tên, cập nhật lại các khối đang gán CB hậu kiểm này (đang lưu theo tên)
         if (oldHoTen && oldHoTen !== hoTen) {
@@ -428,10 +450,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
         }
       } else {
         const newId = `cbhk_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`
-        const { error } = await supabase
-          .from('sgc_can_bo_hau_kiem')
-          .insert([{ id: newId, ho_ten: hoTen, sort_order: canBoHauKiemList.length }])
-        if (error) throw error
+        await writeCbHauKiemToSupabase('insert', { id: newId, ho_ten: hoTen, mau: cbHauKiemMau || null, sort_order: canBoHauKiemList.length })
       }
       await loadCanBoHauKiem()
       openAddCbHauKiem()
@@ -469,6 +488,15 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
   // Gán CB hậu kiểm phụ trách cho 1 khối — cập nhật state cục bộ, cần bấm "Lưu cấu hình" để đồng bộ Supabase
   const handleAssignCbHauKiem = (blockId, value) => {
     setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, canBoHauKiem: value } : b))
+  }
+
+  // Lấy màu của 1 CV hậu kiểm theo tên: ưu tiên màu người dùng đã chọn và lưu (cb.mau),
+  // nếu chưa chọn thì tự tính màu theo tên (hash) để luôn có màu hiển thị nhất quán.
+  const resolveCbColor = (hoTen) => {
+    if (!hoTen) return '#94a3b8'
+    const rec = canBoHauKiemList.find(cb => cb.ho_ten === hoTen)
+    if (rec && rec.mau) return rec.mau
+    return getCbHauKiemColor(hoTen)
   }
 
   // Xuất Excel: danh sách 3 cột CV hậu kiểm / Dự án / Ngăn kho, gộp toàn bộ các khối
@@ -1507,6 +1535,15 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                        {block.canBoHauKiem && (
+                          <span
+                            title={`CV hậu kiểm: ${block.canBoHauKiem}`}
+                            style={{
+                              width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
+                              background: resolveCbColor(block.canBoHauKiem)
+                            }}
+                          />
+                        )}
                         <span style={{
                           background: '#f1f5f9', color: '#475569', fontSize: 11, fontWeight: 700,
                           padding: '3px 9px', borderRadius: 20, whiteSpace: 'nowrap'
@@ -1593,7 +1630,7 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                       {effectiveSelectedBlock.canBoHauKiem && (
                         <span style={{
                           width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-                          background: getCbHauKiemColor(effectiveSelectedBlock.canBoHauKiem)
+                          background: resolveCbColor(effectiveSelectedBlock.canBoHauKiem)
                         }} />
                       )}
                       <select
@@ -1603,14 +1640,14 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                         style={{
                           padding: '7px 10px', borderRadius: 10, fontSize: 12.5, fontWeight: 600,
                           background: '#ffffff',
-                          color: effectiveSelectedBlock.canBoHauKiem ? getCbHauKiemColor(effectiveSelectedBlock.canBoHauKiem) : '#334155',
+                          color: effectiveSelectedBlock.canBoHauKiem ? resolveCbColor(effectiveSelectedBlock.canBoHauKiem) : '#334155',
                           border: `1.5px solid ${selColors.borderColor}`,
                           cursor: 'pointer', maxWidth: 200
                         }}
                       >
                         <option value="" style={{ color: '#334155' }}>— Chưa gán CV hậu kiểm —</option>
                         {canBoHauKiemList.map(cb => (
-                          <option key={cb.id} value={cb.ho_ten} style={{ color: getCbHauKiemColor(cb.ho_ten) }}>{cb.ho_ten}</option>
+                          <option key={cb.id} value={cb.ho_ten} style={{ color: cb.mau || getCbHauKiemColor(cb.ho_ten) }}>{cb.ho_ten}</option>
                         ))}
                       </select>
                     </div>
@@ -2189,6 +2226,29 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                     border: '1px solid #cbd5e1', outline: 'none', boxSizing: 'border-box'
                   }}
                 />
+
+                <div>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 6 }}>
+                    Chọn màu riêng (không bắt buộc — nếu không chọn, hệ thống sẽ tự chọn màu theo tên)
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {CB_HAU_KIEM_COLORS.map(color => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setCbHauKiemMau(cbHauKiemMau === color ? '' : color)}
+                        title={color}
+                        style={{
+                          width: 24, height: 24, borderRadius: '50%', background: color, cursor: 'pointer',
+                          border: cbHauKiemMau === color ? '2.5px solid #0f172a' : '2px solid #ffffff',
+                          boxShadow: cbHauKiemMau === color ? '0 0 0 1.5px #0f172a' : '0 0 0 1px #e2e8f0',
+                          padding: 0
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                   {editingCbHauKiem && (
                     <button
@@ -2237,9 +2297,9 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
                         <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{
                             width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-                            background: getCbHauKiemColor(cb.ho_ten)
+                            background: cb.mau || getCbHauKiemColor(cb.ho_ten)
                           }} />
-                          <div style={{ fontWeight: 700, color: getCbHauKiemColor(cb.ho_ten) }}>{cb.ho_ten}</div>
+                          <div style={{ fontWeight: 700, color: cb.mau || getCbHauKiemColor(cb.ho_ten) }}>{cb.ho_ten}</div>
                         </div>
                         <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                           <button
