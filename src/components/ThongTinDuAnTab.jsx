@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Trash2, Pencil, Check, X, GripVertical, Building, FolderPlus, Database, Copy, RefreshCw, ChevronDown, ChevronUp, AlertCircle, Terminal, Search, Upload, AlertTriangle, UserCheck } from 'lucide-react'
+import { Plus, Trash2, Pencil, Check, X, GripVertical, Building, FolderPlus, Database, Copy, RefreshCw, ChevronDown, ChevronUp, AlertCircle, Terminal, Search, Upload, AlertTriangle, UserCheck, FileSpreadsheet } from 'lucide-react'
 import CustomAlert from './CustomAlert'
 import { supabase } from '../supabaseClient'
+import ExcelJS from 'exceljs'
 
 const SQL_CODE = `-- -------------------------------------------------------------
 -- 1. TẠO BẢNG DANH SÁCH THỦ KHO (Để lưu trữ thông tin nhân sự và dự án liên kết)
@@ -450,6 +451,84 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
   // Gán CB hậu kiểm phụ trách cho 1 khối — cập nhật state cục bộ, cần bấm "Lưu cấu hình" để đồng bộ Supabase
   const handleAssignCbHauKiem = (blockId, value) => {
     setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, canBoHauKiem: value } : b))
+  }
+
+  // Xuất Excel: danh sách 3 cột CV hậu kiểm / Dự án / Ngăn kho, gộp toàn bộ các khối
+  const handleExportCbHauKiemExcel = async () => {
+    try {
+      const rows = []
+      blocks.forEach(b => {
+        (b.projects || []).forEach(p => {
+          rows.push({
+            canBoHauKiem: b.canBoHauKiem || '',
+            duAn: b.name || '',
+            nganKho: p.name || ''
+          })
+        })
+      })
+
+      const workbook = new ExcelJS.Workbook()
+      const worksheet = workbook.addWorksheet('CV hậu kiểm')
+
+      worksheet.columns = [
+        { header: 'CV hậu kiểm', key: 'canBoHauKiem', width: 30 },
+        { header: 'Dự án', key: 'duAn', width: 40 },
+        { header: 'Ngăn kho', key: 'nganKho', width: 46 }
+      ]
+
+      rows.forEach(r => worksheet.addRow(r))
+
+      const headerRow = worksheet.getRow(1)
+      headerRow.height = 30
+      headerRow.eachCell((cell) => {
+        cell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFF' } }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '0F58A7' } }
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+        cell.border = {
+          top: { style: 'thin', color: { argb: '444444' } },
+          left: { style: 'thin', color: { argb: '444444' } },
+          bottom: { style: 'medium', color: { argb: '444444' } },
+          right: { style: 'thin', color: { argb: '444444' } }
+        }
+      })
+
+      worksheet.eachRow({ includeHeader: false }, (row, rowNumber) => {
+        row.height = 22
+        const isEven = rowNumber % 2 === 0
+        const bgColor = isEven ? 'F8FAFC' : 'FFFFFF'
+        row.eachCell((cell, colNumber) => {
+          const headerKey = worksheet.columns[colNumber - 1].key
+          cell.font = {
+            name: 'Arial', size: 10,
+            bold: headerKey === 'canBoHauKiem',
+            color: { argb: headerKey === 'canBoHauKiem' && !cell.value ? '94A3B8' : '1B1919' }
+          }
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } }
+          cell.alignment = { vertical: 'middle', horizontal: 'left' }
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'E2E8F0' } },
+            left: { style: 'thin', color: { argb: 'CBD5E1' } },
+            bottom: { style: 'thin', color: { argb: 'E2E8F0' } },
+            right: { style: 'thin', color: { argb: 'CBD5E1' } }
+          }
+          if (!cell.value && headerKey === 'canBoHauKiem') {
+            cell.value = '— Chưa gán —'
+          }
+        })
+      })
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = window.URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `SGC_Danh_Sach_CV_Hau_Kiem_${new Date().toISOString().split('T')[0]}.xlsx`
+      anchor.click()
+      window.URL.revokeObjectURL(url)
+      setSuccessToast('Đã xuất file Excel danh sách CV hậu kiểm!')
+    } catch (err) {
+      showAlert(`Không thể xuất Excel: ${err.message}`, 'error', 'Lỗi')
+    }
   }
 
   // Auto-hide toast after 3s
@@ -1227,6 +1306,23 @@ export default function ThongTinDuAnTab({ data = [], onReload }) {
           >
             <UserCheck size={15} />
             <span>CV hậu kiểm</span>
+          </button>
+
+          {/* Nút Xuất Excel danh sách CV hậu kiểm / Dự án / Ngăn kho */}
+          <button
+            onClick={handleExportCbHauKiemExcel}
+            title="Xuất Excel: danh sách CV hậu kiểm - Dự án - Ngăn kho"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+              background: '#ffffff', color: '#15803d', border: '1.5px solid #86efac', cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.background = '#f0fdf4' }}
+            onMouseOut={(e) => { e.currentTarget.style.background = '#ffffff' }}
+          >
+            <FileSpreadsheet size={15} />
+            <span>Xuất Excel</span>
           </button>
 
           {/* Nút Tạo công cụ Up nhiều ngăn kho */}
