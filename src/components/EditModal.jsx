@@ -96,6 +96,10 @@ function EditThuKhoPopupModal({ data, formData, onClose, onSave, availableBlocks
       alert('Vui lòng nhập họ và tên.')
       return
     }
+    if (modalForm.isNew && !String(modalForm.maNV || '').trim()) {
+      alert('Vui lòng nhập Mã nhân viên.')
+      return
+    }
 
     let calculatedAge = modalForm.tuoi
     if (modalForm.ngaySinh) {
@@ -177,9 +181,33 @@ function EditThuKhoPopupModal({ data, formData, onClose, onSave, availableBlocks
           style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto', fontFamily: "'Roboto', sans-serif" }}
         >
           <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            
-            {/* Hàng 1: Họ và tên & Số điện thoại */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
+
+            {/* Hàng 1: Mã nhân viên & Họ và tên & Số điện thoại */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 5, color: '#1e293b' }}>
+                  Mã nhân viên (ID) {modalForm.isNew && <span style={{ color: '#ef4444' }}>*</span>}
+                </label>
+                <input
+                  className="input"
+                  style={{
+                    width: '100%', height: 40, borderRadius: 8, fontSize: 14, fontWeight: 700, color: '#0f58a7',
+                    backgroundColor: modalForm.isNew ? '#ffffff' : '#f1f5f9',
+                    borderColor: (modalForm.isNew && !String(modalForm.maNV || '').trim()) ? '#fca5a5' : undefined
+                  }}
+                  value={modalForm.maNV || ''}
+                  onChange={e => setModalForm({ ...modalForm, maNV: e.target.value })}
+                  disabled={!modalForm.isNew}
+                  required={modalForm.isNew}
+                  placeholder={modalForm.isNew ? 'Bắt buộc nhập Mã NV (VD: TK001)' : ''}
+                />
+                {modalForm.isNew && !String(modalForm.maNV || '').trim() && (
+                  <span style={{ fontSize: 11, color: '#dc2626', fontWeight: 600 }}>
+                    Vui lòng nhập Mã NV trước khi lưu
+                  </span>
+                )}
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 5, color: '#1e293b' }}>
                   Họ và tên <span style={{ color: '#ef4444' }}>*</span>
