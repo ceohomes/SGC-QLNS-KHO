@@ -3012,6 +3012,104 @@ function CandidateDetailModal({
     reader.readAsDataURL(file)
   }
 
+  // ================= CÔNG CỤ TẢI LẠI (THAY THẾ) FILE CV & LƯU =================
+  // Bước 1: chọn file -> xem trước ở khung PDF bên phải (chưa lưu).
+  // Bước 2: bấm "Lưu CV" -> lưu IndexedDB + đẩy lên GitHub (CV-TQT/cvs) + cập nhật Supabase.
+  const reuploadInputRef = useRef(null)
+  const previousPdfBlobRef = useRef(null)
+  const [pendingCv, setPendingCv] = useState(null) // { file, dataUrl }
+  const [isSavingCv, setIsSavingCv] = useState(false)
+  const [cvSaveMsg, setCvSaveMsg] = useState(null) // { type: 'success' | 'warning' | 'error', text }
+
+  const MAX_CV_SIZE_MB = 20
+
+  const handlePickReuploadCv = (e) => {
+    const file = e.target.files?.[0]
+    // Cho phép chọn lại đúng file cũ lần sau
+    if (e.target) e.target.value = ''
+    if (!file) return
+
+    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name)
+    if (!isPdf) {
+      setCvSaveMsg({ type: 'error', text: 'Chỉ hỗ trợ tải lại file CV định dạng PDF (.pdf).' })
+      return
+    }
+    if (file.size > MAX_CV_SIZE_MB * 1024 * 1024) {
+      setCvSaveMsg({ type: 'error', text: `File quá lớn (${(file.size / 1024 / 1024).toFixed(1)} MB). Giới hạn ${MAX_CV_SIZE_MB} MB.` })
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result
+      if (!pendingCv) previousPdfBlobRef.current = currentPdfBlob
+      setPendingCv({ file, dataUrl })
+      setCvSaveMsg(null)
+      // Xem trước file mới ở khung bên phải
+      setCurrentPdfBlob(dataUrlToBlob(dataUrl) || file)
+    }
+    reader.onerror = () => setCvSaveMsg({ type: 'error', text: 'Không đọc được file đã chọn.' })
+    reader.readAsDataURL(file)
+  }
+
+  const handleCancelReuploadCv = () => {
+    if (previousPdfBlobRef.current) setCurrentPdfBlob(previousPdfBlobRef.current)
+    previousPdfBlobRef.current = null
+    setPendingCv(null)
+    setCvSaveMsg(null)
+  }
+
+  const handleSaveReuploadCv = async () => {
+    if (!pendingCv || isSavingCv) return
+    const { file, dataUrl } = pendingCv
+    setIsSavingCv(true)
+    setCvSaveMsg(null)
+    try {
+      // 1. Lưu vào bộ nhớ trình duyệt (IndexedDB) - ghi đè bản cũ
+      await saveCandidatePdf(candidate.id, dataUrl)
+      await saveOriginalCandidatePdf(candidate.id, dataUrl)
+
+      // 2. Đẩy file mới lên kho GitHub
+      let ghResult = null
+      let ghError = ''
+      try {
+        ghResult = await uploadCvToGitHubUniversal({
+          fileName: file.name,
+          base64Data: dataUrl,
+          candidateName: candidate.hoTen
+        })
+      } catch (ghErr) {
+        console.warn('Lỗi tải CV mới lên GitHub:', ghErr)
+        ghError = ghErr?.message || 'Lỗi không xác định'
+      }
+
+      // 3. Cập nhật hồ sơ ứng viên (state + Supabase qua onUpdateCandidate)
+      const updated = {
+        ...candidate,
+        fileName: ghResult?.fileName || file.name,
+        // Không lên được GitHub thì xoá link cũ (vì link cũ trỏ tới file CV cũ)
+        fileUrl: ghResult?.downloadUrl || '',
+        githubUrl: ghResult?.htmlUrl || '',
+        fileDataUrl: dataUrl
+      }
+      if (onUpdateCandidate) await onUpdateCandidate(updated)
+
+      previousPdfBlobRef.current = null
+      setPendingCv(null)
+      if (ghResult) {
+        setCvSaveMsg({ type: 'success', text: `Đã lưu CV mới "${file.name}" lên GitHub và cập nhật hồ sơ. Bấm "Quét lại bằng AI" nếu muốn cập nhật thông tin theo CV mới.` })
+      } else {
+        setCvSaveMsg({ type: 'warning', text: `Đã lưu CV mới trên máy này, nhưng CHƯA đẩy được lên GitHub (${ghError}). Kiểm tra GitHub Token trong Cài đặt rồi tải lại.` })
+      }
+      setTimeout(() => setCvSaveMsg(prev => (prev && prev.type === 'success' ? null : prev)), 8000)
+    } catch (err) {
+      console.error('Lỗi lưu CV mới:', err)
+      setCvSaveMsg({ type: 'error', text: 'Lỗi lưu CV mới: ' + (err?.message || 'không xác định') })
+    } finally {
+      setIsSavingCv(false)
+    }
+  }
+
   const handleDownloadPdf = async () => {
     let blobToDownload = currentPdfBlob
     if (!blobToDownload) {
@@ -3174,10 +3272,71 @@ function CandidateDetailModal({
                   <span>ĐÁNH GIÁ ĐỘ PHÙ HỢP TỪ GEMINI AI</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {/* Công cụ tải lại file CV & lưu */}
+                  <input
+                    ref={reuploadInputRef}
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    style={{ display: 'none' }}
+                    onChange={handlePickReuploadCv}
+                  />
+                  {!pendingCv ? (
+                    <button
+                      type="button"
+                      disabled={isSavingCv || isRescanning}
+                      onClick={() => reuploadInputRef.current?.click()}
+                      title="Chọn file CV (PDF) mới để thay thế file CV hiện tại của ứng viên"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                        background: '#ffffff', color: '#0f58a7',
+                        border: '1.5px solid #0f58a7', borderRadius: 8, padding: '4px 12px',
+                        fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                        boxShadow: '0 2px 4px rgba(15, 88, 167, 0.15)'
+                      }}
+                    >
+                      <Upload size={13} />
+                      <span>Tải lại CV</span>
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        disabled={isSavingCv}
+                        onClick={handleSaveReuploadCv}
+                        title={`Lưu file "${pendingCv.file.name}" làm CV chính thức của ứng viên`}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          background: '#059669', color: '#ffffff',
+                          border: 'none', borderRadius: 8, padding: '5px 12px',
+                          fontSize: 12, fontWeight: 700, cursor: isSavingCv ? 'wait' : 'pointer',
+                          boxShadow: '0 2px 4px rgba(5, 150, 105, 0.25)'
+                        }}
+                      >
+                        {isSavingCv ? <RefreshCw size={13} className="spin-icon" /> : <Save size={13} />}
+                        <span>{isSavingCv ? 'Đang lưu...' : 'Lưu CV'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSavingCv}
+                        onClick={handleCancelReuploadCv}
+                        title="Huỷ, giữ lại file CV cũ"
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                          background: '#ffffff', color: '#64748b',
+                          border: '1px solid #cbd5e1', borderRadius: 8, padding: '4px 10px',
+                          fontSize: 12, fontWeight: 700, cursor: isSavingCv ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        <X size={13} />
+                        <span>Huỷ</span>
+                      </button>
+                    </>
+                  )}
                   <button
                     type="button"
-                    disabled={isRescanning}
+                    disabled={isRescanning || !!pendingCv}
                     onClick={handleRescanWithAi}
+                    title={pendingCv ? 'Hãy lưu hoặc huỷ CV mới trước khi quét lại' : undefined}
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 5,
                       background: '#7c3aed', color: '#ffffff',
@@ -3198,6 +3357,45 @@ function CandidateDetailModal({
                   </div>
                 </div>
               </div>
+
+              {pendingCv && (
+                <div style={{
+                  padding: '8px 12px', background: '#eff6ff', border: '1px dashed #60a5fa',
+                  borderRadius: 8, color: '#1e3a8a', fontSize: 12.5, fontWeight: 600,
+                  display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap'
+                }}>
+                  <FileText size={15} color="#2563eb" />
+                  <span>
+                    Đang xem trước CV mới: <b>{pendingCv.file.name}</b> ({(pendingCv.file.size / 1024).toFixed(0)} KB) ở khung bên phải.
+                    Bấm <b>Lưu CV</b> để thay thế file cũ, hoặc <b>Huỷ</b> để giữ nguyên.
+                  </span>
+                </div>
+              )}
+
+              {cvSaveMsg && (
+                <div style={{
+                  padding: '8px 12px',
+                  background: cvSaveMsg.type === 'success' ? '#ecfdf5' : cvSaveMsg.type === 'warning' ? '#fffbeb' : '#fef2f2',
+                  border: `1px solid ${cvSaveMsg.type === 'success' ? '#a7f3d0' : cvSaveMsg.type === 'warning' ? '#fde68a' : '#fecaca'}`,
+                  borderRadius: 8,
+                  color: cvSaveMsg.type === 'success' ? '#065f46' : cvSaveMsg.type === 'warning' ? '#92400e' : '#991b1b',
+                  fontSize: 12.5, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', gap: 6
+                }}>
+                  {cvSaveMsg.type === 'success'
+                    ? <CheckCircle size={15} color="#059669" />
+                    : <AlertCircle size={15} color={cvSaveMsg.type === 'warning' ? '#d97706' : '#dc2626'} />}
+                  <span style={{ flex: 1 }}>{cvSaveMsg.text}</span>
+                  <button
+                    type="button"
+                    onClick={() => setCvSaveMsg(null)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
+                    title="Đóng thông báo"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
 
               {rescanSuccessMsg && (
                 <div style={{
