@@ -693,6 +693,10 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
 
   // Group projects by Block for clear hierarchy in both Split and Kanban views
   const groupedProjects = useMemo(() => {
+    // Sắp xếp các ngăn kho (dự án) trong mỗi khối theo tên A → Z (chuẩn tiếng Việt, số theo thứ tự tự nhiên)
+    const viCollator = new Intl.Collator('vi', { sensitivity: 'base', numeric: true })
+    const sortByName = (list) => [...list].sort((x, y) => viCollator.compare((x.name || '').trim(), (y.name || '').trim()))
+
     // 1. Special group (Chưa phân bổ & Đã nghỉ việc)
     // Nếu trong danh sách khối đã có khối NGĂN KHO CHƯA PHÂN BỔ (id === 'unassigned'),
     // chỉ hiển thị trạng thái "Đã nghỉ việc" trong nhóm TRẠNG THÁI ĐẶC BIỆT để tránh trùng lặp 2 mục Chưa phân bổ
@@ -714,7 +718,7 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
 
     // 2. Groups from configured blocks
     const blockGroups = blocks.map(b => {
-      const bProjects = projectStats.filter(p => p.blockId === b.id)
+      const bProjects = sortByName(projectStats.filter(p => p.blockId === b.id))
       return {
         id: b.id,
         name: b.name,
@@ -729,11 +733,11 @@ export default function DuAnTab({ data = [], onUpdateData, onReload, initialSear
     })
 
     // 3. Any projects without matching block
-    const otherProjects = projectStats.filter(p => 
+    const otherProjects = sortByName(projectStats.filter(p => 
       p.id !== 'UNASSIGNED' && 
       p.id !== 'RETIRED' && 
       !blocks.some(b => b.id === p.blockId)
-    )
+    ))
 
     const otherGroup = otherProjects.length > 0 ? [{
       id: 'OTHER',
